@@ -41,7 +41,10 @@ export function optimize<T>(payload: T, opts: OptimizeOptions): OptimizeResult<T
   const started = performance.now();
   const mode = opts.tokenCounting ?? "exact";
   const count = (text: string) =>
-    countTokens(text, mode === "approx" || text.length > EXACT_COUNT_MAX_CHARS ? "approx" : "exact");
+    countTokens(
+      text,
+      mode === "approx" || text.length > EXACT_COUNT_MAX_CHARS ? "approx" : mode === "fast" ? "sampled" : "exact",
+    );
 
   const enabled = resolveStages(opts);
   const profile: ProfileId | "custom" =

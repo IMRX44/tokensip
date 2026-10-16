@@ -5,6 +5,30 @@ import type { Database } from "./db.js";
 
 type Row = Record<string, unknown>;
 
+/** Prepared statements are reused: preparing on every hot-path call costs more than running them. */
+function statements(db: Database) {
+  const cache = new Map<string, ReturnType<Database["prepare"]>>();
+  return (sql: string) => {
+    let st = cache.get(sql);
+    if (!st) {
+      st = db.prepare(sql);
+      cache.set(sql, st);
+    }
+    return st;
+  };
+}
+
+/** Run `fn` at most once per `ms` for a given id. */
+function throttle(ms: number) {
+  const last = new Map<string, number>();
+  return (id: string, fn: () => void) => {
+    const now = Date.now();
+    if (now - (last.get(id) ?? 0) < ms) return;
+    last.set(id, now);
+    fn();
+  };
+}
+
 // ---------------------------------------------------------------- settings
 
 export interface Settings {
@@ -97,6 +121,10 @@ export function keyHint(key: string): string {
 }
 
 export class ProviderStore {
+  /** Bumped on every change so callers can cache derived state. */
+  version = 0;
+  private readonly touched = throttle(30_000);
+
   constructor(
     private readonly db: Database,
     private readonly vault: Vault,
@@ -146,6 +174,7 @@ export class ProviderStore {
         input.streamUsage === undefined || input.streamUsage === null ? null : input.streamUsage ? 1 : 0,
         Date.now(),
       );
+    this.version++;
     return this.get(id) as ProviderRecord;
   }
 
@@ -181,15 +210,17 @@ export class ProviderStore {
       add("key_hint", patch.apiKey ? keyHint(patch.apiKey) : null);
     }
     if (sets.length) this.db.prepare(`UPDATE providers SET ${sets.join(", ")} WHERE id = ?`).run(...vals, id);
+    this.version++;
     return this.get(id);
   }
 
   delete(id: string): boolean {
+    this.version++;
     return Number(this.db.prepare("DELETE FROM providers WHERE id = ?").run(id).changes) > 0;
   }
 
   touch(id: string): void {
-    this.db.prepare("UPDATE providers SET last_used_at = ? WHERE id = ?").run(Date.now(), id);
+    this.touched(id, () => this.db.prepare("UPDATE providers SET last_used_at = ? WHERE id = ?").run(Date.now(), id));
   }
 }
 
@@ -236,7 +267,18 @@ export interface ApiKeyInput {
 }
 
 export class ApiKeyStore {
-  constructor(private readonly db: Database) {}
+  /** Short-lived lookup cache; cleared on every change made through this store. */
+  private readonly byHash = new Map<string, { record: ApiKeyRecord | undefined; at: number }>();
+  private readonly touched = throttle(30_000);
+  private readonly stmt: ReturnType<typeof statements>;
+
+  constructor(
+    private readonly db: Database,
+    /** Called before reading request data (flushes buffered request rows). */
+    private readonly beforeRead: () => void = () => {},
+  ) {
+    this.stmt = statements(db);
+  }
 
   list(): ApiKeyRecord[] {
     return (this.db.prepare("SELECT * FROM api_keys ORDER BY created_at DESC").all() as Row[]).map(toKey);
@@ -248,8 +290,15 @@ export class ApiKeyStore {
   }
 
   findByKey(key: string): ApiKeyRecord | undefined {
-    const r = this.db.prepare("SELECT * FROM api_keys WHERE hash = ?").get(sha256Hex(key)) as Row | undefined;
-    return r ? toKey(r) : undefined;
+    const hash = sha256Hex(key);
+    const hit = this.byHash.get(hash);
+    // 5 s TTL also picks up changes made by another process (e.g. the CLI).
+    if (hit && Date.now() - hit.at < 5_000) return hit.record;
+    const r = this.stmt("SELECT * FROM api_keys WHERE hash = ?").get(hash) as Row | undefined;
+    const record = r ? toKey(r) : undefined;
+    if (this.byHash.size > 10_000) this.byHash.clear();
+    this.byHash.set(hash, { record, at: Date.now() });
+    return record;
   }
 
   create(input: ApiKeyInput): { record: ApiKeyRecord; key: string } {
@@ -273,6 +322,7 @@ export class ApiKeyStore {
         input.enabled === false ? 0 : 1,
         Date.now(),
       );
+    this.byHash.clear();
     return { record: this.get(id) as ApiKeyRecord, key };
   }
 
@@ -296,19 +346,22 @@ export class ApiKeyStore {
       vals.push(m[1](v as never));
     }
     if (sets.length) this.db.prepare(`UPDATE api_keys SET ${sets.join(", ")} WHERE id = ?`).run(...vals, id);
+    this.byHash.clear();
     return this.get(id);
   }
 
   delete(id: string): boolean {
+    this.byHash.clear();
     return Number(this.db.prepare("DELETE FROM api_keys WHERE id = ?").run(id).changes) > 0;
   }
 
   touch(id: string): void {
-    this.db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?").run(Date.now(), id);
+    this.touched(id, () => this.stmt("UPDATE api_keys SET last_used_at = ? WHERE id = ?").run(Date.now(), id));
   }
 
   /** USD spent by a key since the start of the current UTC month. */
   monthSpend(id: string): number {
+    this.beforeRead();
     const now = new Date();
     const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
     const r = this.db
@@ -348,47 +401,84 @@ export type Range = "24h" | "7d" | "30d" | "90d";
 const RANGE_MS: Record<Range, number> = { "24h": 864e5, "7d": 7 * 864e5, "30d": 30 * 864e5, "90d": 90 * 864e5 };
 
 export class RequestLog {
-  constructor(private readonly db: Database) {}
+  private pending: RequestRecord[] = [];
+  private timer: NodeJS.Timeout | null = null;
+  private readonly stmt: ReturnType<typeof statements>;
 
+  constructor(private readonly db: Database) {
+    this.stmt = statements(db);
+  }
+
+  /**
+   * Rows are buffered and written in one transaction every 250 ms (or every
+   * 200 rows) instead of one write per request. Every read flushes first, so
+   * readers always see all completed requests.
+   */
   insert(r: RequestRecord): void {
-    this.db
-      .prepare(
-        `INSERT INTO requests(id, ts, key_id, tenant, provider, model, protocol, path, stream, status, latency_ms, ttfb_ms,
+    this.pending.push(r);
+    if (this.pending.length >= 200) this.flush();
+    else if (!this.timer) {
+      this.timer = setTimeout(() => this.flush(), 250);
+      this.timer.unref();
+    }
+  }
+
+  flush(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    if (this.pending.length === 0) return;
+    const rows = this.pending;
+    this.pending = [];
+    this.db.exec("BEGIN");
+    try {
+      for (const r of rows) this.write(r);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  private write(r: RequestRecord): void {
+    this.stmt(
+      `INSERT INTO requests(id, ts, key_id, tenant, provider, model, protocol, path, stream, status, latency_ms, ttfb_ms,
           overhead_ms, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, estimated,
           optimizer_saved, cost, baseline_cost, cache_hit, profile, lossy, error)
          VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        r.id,
-        r.ts,
-        r.keyId,
-        r.tenant,
-        r.provider,
-        r.model,
-        r.protocol,
-        r.path,
-        r.stream ? 1 : 0,
-        r.status,
-        Math.round(r.latencyMs),
-        r.ttfbMs === null ? null : Math.round(r.ttfbMs),
-        r.overheadMs,
-        r.usage.inputTokens,
-        r.usage.outputTokens,
-        r.usage.cacheReadTokens,
-        r.usage.cacheWriteTokens,
-        r.usage.reasoningTokens,
-        r.usage.estimated ? 1 : 0,
-        r.optimizerSaved,
-        r.cost,
-        r.baselineCost,
-        r.cacheHit ? 1 : 0,
-        r.profile,
-        r.lossy ? 1 : 0,
-        r.error ? r.error.slice(0, 500) : null,
-      );
+    ).run(
+      r.id,
+      r.ts,
+      r.keyId,
+      r.tenant,
+      r.provider,
+      r.model,
+      r.protocol,
+      r.path,
+      r.stream ? 1 : 0,
+      r.status,
+      Math.round(r.latencyMs),
+      r.ttfbMs === null ? null : Math.round(r.ttfbMs),
+      r.overheadMs,
+      r.usage.inputTokens,
+      r.usage.outputTokens,
+      r.usage.cacheReadTokens,
+      r.usage.cacheWriteTokens,
+      r.usage.reasoningTokens,
+      r.usage.estimated ? 1 : 0,
+      r.optimizerSaved,
+      r.cost,
+      r.baselineCost,
+      r.cacheHit ? 1 : 0,
+      r.profile,
+      r.lossy ? 1 : 0,
+      r.error ? r.error.slice(0, 500) : null,
+    );
   }
 
   list(opts: { limit: number; before?: number; keyId?: string; provider?: string; status?: "ok" | "error" }): Row[] {
+    this.flush();
     const where: string[] = [];
     const vals: (string | number)[] = [];
     if (opts.before) {
@@ -410,6 +500,7 @@ export class RequestLog {
   }
 
   overview(range: Range) {
+    this.flush();
     const since = Date.now() - RANGE_MS[range];
     const totals = this.db
       .prepare(
@@ -466,6 +557,7 @@ export class RequestLog {
 
   /** Models seen recently, most used first. */
   models(sinceMs: number, limit = 200): { model: string; requests: number; lastSeen: number }[] {
+    this.flush();
     return (
       this.db
         .prepare(
@@ -477,6 +569,7 @@ export class RequestLog {
   }
 
   prune(retentionDays: number): number {
+    this.flush();
     const cutoff = Date.now() - retentionDays * 864e5;
     return Number(this.db.prepare("DELETE FROM requests WHERE ts < ?").run(cutoff).changes);
   }

@@ -72,8 +72,8 @@ export class TokenSipApp {
   ) {
     this.kv = new KV(db);
     this.providers = new ProviderStore(db, vault);
-    this.keys = new ApiKeyStore(db);
     this.requests = new RequestLog(db);
+    this.keys = new ApiKeyStore(db, () => this.requests.flush());
     this.cache = new ResponseCache(db, vault);
     this.sessions = new SessionStore(db);
     this.audit = new AuditLog(db);
@@ -135,14 +135,32 @@ export class TokenSipApp {
     return next;
   }
 
+  private configuredCache: { version: number; at: number; list: ConfiguredProvider[] } | null = null;
+
   /** Providers available for routing: stored ones plus read-only environment keys. */
   configured(): ConfiguredProvider[] {
+    const c = this.configuredCache;
+    // Rebuilt after any change through this process, and every 5 s to pick up other processes.
+    if (c && c.version === this.providers.version && Date.now() - c.at < 5_000) return c.list;
+    const list = this.loadConfigured();
+    this.configuredCache = { version: this.providers.version, at: Date.now(), list };
+    return list;
+  }
+
+  private loadConfigured(): ConfiguredProvider[] {
     const fromDb: ConfiguredProvider[] = this.providers
       .list()
       .filter((r) => r.enabled)
       .flatMap((record) => {
         const preset = PROVIDER_BY_ID.get(record.preset);
-        return preset ? [{ record, preset, apiKey: () => this.providers.apiKey(record.id) }] : [];
+        if (!preset) return [];
+        // Decrypted once per cache generation instead of on every request.
+        let key: string | null | undefined;
+        const apiKey = () => {
+          if (key === undefined) key = this.providers.apiKey(record.id);
+          return key;
+        };
+        return [{ record, preset, apiKey }];
       });
     const dbPresets = new Set(fromDb.map((p) => p.preset.id));
     return [...fromDb, ...this.envProviders.filter((p) => !dbPresets.has(p.preset.id))];
@@ -175,7 +193,7 @@ export class TokenSipApp {
 
   /**
    * Pick the upstream provider for a request.
-   * Order: explicit route/header → model-name patterns → default provider → first available.
+   * Order: explicit route/header → model-name patterns → default provider → custom gateway → first available.
    */
   resolve(opts: {
     surface: Surface;
@@ -198,6 +216,8 @@ export class TokenSipApp {
           pool.map((p) => ({ ...p, id: p.preset.id, modelPatterns: p.preset.modelPatterns })),
         ) ??
         pool.find((p) => p.preset.id === this.settings.defaultProvider) ??
+        // A custom gateway/aggregator is the natural home for model names no preset claims.
+        pool.find((p) => p.preset.id === "custom") ??
         (opts.passthrough ? undefined : pool[0]);
     }
 
@@ -273,6 +293,7 @@ export class TokenSipApp {
   }
 
   close(): void {
+    this.requests.flush();
     this.db.close();
   }
 }
