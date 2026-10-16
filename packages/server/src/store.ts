@@ -424,16 +424,17 @@ export class RequestLog {
       .get(since) as Row;
 
     const bucketMs = range === "24h" ? 3_600_000 : 86_400_000;
+    // Inlined integer literal: node:sqlite binds JS numbers as REAL, which would turn this into float division.
     const series = this.db
       .prepare(
-        `SELECT (ts / ?) * ? AS bucket, COUNT(*) AS requests,
-          SUM(input_tokens + cache_read_tokens + cache_write_tokens) AS prompt_tokens,
+        `SELECT (ts / ${bucketMs}) * ${bucketMs} AS bucket, COUNT(*) AS requests,
+          SUM(input_tokens + cache_read_tokens + cache_write_tokens + optimizer_saved) AS prompt_tokens,
           SUM(output_tokens) AS output_tokens,
           SUM(optimizer_saved + cache_read_tokens) AS saved_tokens,
           SUM(cost) AS cost, SUM(baseline_cost) AS baseline_cost
          FROM requests WHERE ts >= ? GROUP BY bucket ORDER BY bucket`,
       )
-      .all(bucketMs, bucketMs, since) as Row[];
+      .all(since) as Row[];
 
     const byModel = this.db
       .prepare(

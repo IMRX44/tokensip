@@ -23,6 +23,7 @@ ${bold("Usage")}
   tokensip keys create --name <name>  Create a virtual API key
   tokensip keys list                  List virtual API keys
   tokensip reset-password             Generate a new admin password (and disable 2FA)
+  tokensip demo                       Try the dashboard with synthetic traffic (no keys needed)
   tokensip doctor                     Check your environment
   tokensip version
 
@@ -70,7 +71,8 @@ function parse() {
 type Values = ReturnType<typeof parse>["values"];
 
 function configFrom(values: Values): Partial<TokenSipConfig> {
-  const out: Partial<TokenSipConfig> = {};
+  // The CLI prints its own banner; keep server logs to warnings unless asked otherwise.
+  const out: Partial<TokenSipConfig> = process.env.TOKENSIP_LOG_LEVEL ? {} : { logLevel: "warn" };
   if (values.port) out.port = Number(values.port);
   if (values.host) out.host = values.host;
   if (values["data-dir"]) out.dataDir = values["data-dir"];
@@ -258,6 +260,32 @@ async function doctor(values: Values) {
   console.log();
 }
 
+async function demo(values: Values) {
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { createTokenSipServer } = await import("./server.js");
+  const { seedDemo } = await import("./demo.js");
+  const password = values.password ?? "tokensip-demo";
+  const dataDir = mkdtempSync(join(tmpdir(), "tokensip-demo-"));
+  const server = await createTokenSipServer({
+    config: { ...configFrom(values), dataDir, adminPassword: password, allowPassthrough: true },
+  });
+  const rows = seedDemo(server.app);
+  const base = await server.listen();
+  console.log(
+    [
+      LOGO,
+      `  ${green("●")} Demo dashboard  ${bold(base)}`,
+      `  ${green("●")} Password        ${bold(password)}`,
+      `  ${dim(`Seeded ${rows.toLocaleString()} synthetic requests into ${dataDir}`)}`,
+      `  ${dim("Provider keys in demo mode are fake — use `tokensip start` for real traffic.")}`,
+      "",
+    ].join("\n"),
+  );
+  process.on("SIGINT", () => void server.close().then(() => process.exit(0)));
+}
+
 async function main() {
   const { values, positionals } = parse();
   if (values.help) return console.log(HELP);
@@ -274,6 +302,8 @@ async function main() {
       return resetPassword(values);
     case "doctor":
       return doctor(values);
+    case "demo":
+      return demo(values);
     case "version":
       return console.log(VERSION);
     case "help":
