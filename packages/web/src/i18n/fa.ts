@@ -264,4 +264,27 @@ export const fa: Messages = {
   "theme.system": "سیستم",
   "theme.dark": "تیره",
   "theme.light": "روشن",
+
+  "providers.anthropicBaseUrl": "آدرس پایهٔ سازگار با Anthropic",
+  "providers.anthropicBaseUrlHint": "اختیاری. مبدأ یک اندپوینت ‎/v1/messages، مثلاً https://api.example.com",
+  "providers.streamUsage": "درخواست مصرف در استریم",
+  "providers.streamUsageHint":
+    "برای محاسبهٔ دقیق استریم، stream_options.include_usage ارسال می‌شود. فقط اگر ارائه‌دهنده پشتیبانی می‌کند فعال کنید.",
+  "providers.editTitle": "ویرایش ارائه‌دهنده",
+  "settings.pricing": "قیمت مدل‌ها",
+  "settings.pricingBody":
+    "دلار برای هر یک میلیون توکن. مدل‌هایی که استفاده می‌کنید خودکار اینجا نمایش داده می‌شوند. قیمت جدید روی درخواست‌های بعدی اعمال می‌شود.",
+  "settings.pricingInput": "ورودی",
+  "settings.pricingOutput": "خروجی",
+  "settings.pricingCacheRead": "خواندن از کش",
+  "settings.pricingCacheWrite": "نوشتن در کش",
+  "settings.pricingSet": "ثبت قیمت",
+  "settings.pricingReset": "بازنشانی",
+  "settings.pricingEmpty": "هنوز ترافیکی نیست — مدل‌ها پس از اولین درخواست اینجا ظاهر می‌شوند.",
+  "price.override": "سفارشی",
+  "price.list": "قیمت رسمی",
+  "price.family": "تخمینی",
+  "price.none": "بدون قیمت",
+  "overview.unpriced": "{count} مدل قیمت ندارند و هزینه‌شان محاسبه نمی‌شود: {models}",
+  "overview.unpricedCta": "تعیین قیمت",
 };

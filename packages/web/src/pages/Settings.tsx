@@ -1,10 +1,20 @@
-import { Database, Gauge, Palette, Route, Shield, SlidersHorizontal } from "lucide-react";
+import { CircleDollarSign, Database, Gauge, Palette, Route, Shield, SlidersHorizontal } from "lucide-react";
 import QRCode from "qrcode";
 import { type ReactNode, useEffect, useState } from "react";
 import { ProfilePicker } from "../components/ProfilePicker";
 import { Callout, Field, SafetyBadge, Segmented, Switch, useToast } from "../components/ui";
 import { LANGUAGES, type MessageKey, useI18n } from "../i18n";
-import { ApiError, type AuthState, api, type Catalog, type Settings, setCsrf } from "../lib/api";
+import {
+  ApiError,
+  type AuthState,
+  api,
+  type Catalog,
+  type ModelPrice,
+  type PriceSource,
+  type PricingInfo,
+  type Settings,
+  setCsrf,
+} from "../lib/api";
 import { useApi } from "../lib/hooks";
 import { type ThemePref, useTheme } from "../lib/theme";
 
@@ -13,14 +23,16 @@ function Section({
   title,
   body,
   children,
+  id,
 }: {
   icon: ReactNode;
   title: string;
   body?: string;
   children: ReactNode;
+  id?: string;
 }) {
   return (
-    <div className="card">
+    <div className="card" id={id}>
       <h3 className="card-title">
         {icon} {title}
       </h3>
@@ -72,6 +84,151 @@ function NumberInput({
         if (Number.isFinite(n) && n !== value) onCommit(n);
       }}
     />
+  );
+}
+
+const SOURCE_TONE: Record<PriceSource, string> = { override: "violet", list: "ok", family: "info", none: "bad" };
+
+function PriceRow({
+  model,
+  requests,
+  source,
+  price,
+  onSaved,
+}: {
+  model: string;
+  requests?: number;
+  source: PriceSource;
+  price: ModelPrice | null;
+  onSaved(): void;
+}) {
+  const { t, num, usd } = useI18n();
+  const toast = useToast();
+  const [edit, setEdit] = useState(source === "none");
+  const [v, setV] = useState({
+    input: String(price?.input ?? ""),
+    output: String(price?.output ?? ""),
+    cacheRead: String(price?.cacheRead ?? ""),
+    cacheWrite: String(price?.cacheWrite ?? ""),
+  });
+  const save = async () => {
+    const body: ModelPrice = { input: Number(v.input), output: Number(v.output) };
+    if (v.cacheRead !== "") body.cacheRead = Number(v.cacheRead);
+    if (v.cacheWrite !== "") body.cacheWrite = Number(v.cacheWrite);
+    if (!Number.isFinite(body.input) || !Number.isFinite(body.output) || v.input === "" || v.output === "") return;
+    await api(`/pricing/${encodeURIComponent(model)}`, { method: "PUT", body });
+    toast(t("common.saved"));
+    setEdit(false);
+    onSaved();
+  };
+  const cell = (k: keyof typeof v) =>
+    edit ? (
+      <input
+        className="input"
+        style={{ width: 82, height: 32 }}
+        type="number"
+        min={0}
+        step="0.001"
+        value={v[k]}
+        onChange={(e) => setV({ ...v, [k]: e.target.value })}
+      />
+    ) : (
+      <span>{price && price[k] !== undefined ? usd(price[k] as number) : "—"}</span>
+    );
+  return (
+    <tr>
+      <td>
+        <div className="mono">{model}</div>
+        {requests !== undefined && <div className="small faint">{num(requests)} req</div>}
+      </td>
+      <td>
+        <span className={`badge ${SOURCE_TONE[source]}`}>{t(`price.${source}`)}</span>
+      </td>
+      <td className="num">{cell("input")}</td>
+      <td className="num">{cell("output")}</td>
+      <td className="num">{cell("cacheRead")}</td>
+      <td className="num">{cell("cacheWrite")}</td>
+      <td>
+        <div className="row" style={{ justifyContent: "flex-end", gap: 6 }}>
+          {edit ? (
+            <button type="button" className="btn sm primary" onClick={() => void save()}>
+              {t("common.save")}
+            </button>
+          ) : (
+            <button type="button" className="btn sm" onClick={() => setEdit(true)}>
+              {t("settings.pricingSet")}
+            </button>
+          )}
+          {source === "override" && (
+            <button
+              type="button"
+              className="btn sm ghost"
+              onClick={async () => {
+                await api(`/pricing/${encodeURIComponent(model)}`, { method: "DELETE" });
+                toast(t("common.saved"));
+                onSaved();
+              }}
+            >
+              {t("settings.pricingReset")}
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function Pricing() {
+  const { t } = useI18n();
+  const { data, reload } = useApi<PricingInfo>("/pricing");
+  useEffect(() => {
+    if (data && window.location.hash === "#pricing")
+      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+  }, [data]);
+  const used = new Set(data?.models.map((m) => m.model.toLowerCase()) ?? []);
+  const extraOverrides = Object.entries(data?.overrides ?? {}).filter(([m]) => !used.has(m));
+  return (
+    <Section
+      id="pricing"
+      icon={<CircleDollarSign size={16} />}
+      title={t("settings.pricing")}
+      body={t("settings.pricingBody")}
+    >
+      {data && data.models.length === 0 && extraOverrides.length === 0 ? (
+        <p className="muted small">{t("settings.pricingEmpty")}</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>{t("overview.model")}</th>
+                <th />
+                <th className="num">{t("settings.pricingInput")}</th>
+                <th className="num">{t("settings.pricingOutput")}</th>
+                <th className="num">{t("settings.pricingCacheRead")}</th>
+                <th className="num">{t("settings.pricingCacheWrite")}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data?.models.map((m) => (
+                <PriceRow
+                  key={`${m.model}-${m.source}`}
+                  model={m.model}
+                  requests={m.requests}
+                  source={m.source}
+                  price={m.price}
+                  onSaved={reload}
+                />
+              ))}
+              {extraOverrides.map(([m, price]) => (
+                <PriceRow key={`${m}-override`} model={m} source="override" price={price} onSaved={reload} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Section>
   );
 }
 
@@ -420,6 +577,8 @@ export function SettingsPage({
             </Row>
           </Section>
         </div>
+
+        <Pricing />
 
         <Security auth={auth} onAuthChange={onAuthChange} />
 

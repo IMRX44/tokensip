@@ -176,17 +176,19 @@ export function Ring({ value, size = 64, label }: { value: number; size?: number
         </linearGradient>
       </defs>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-3)" strokeWidth={6} />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke="url(#ring)"
-        strokeWidth={6}
-        strokeLinecap="round"
-        strokeDasharray={`${c * v} ${c}`}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      />
+      {v > 0.001 && (
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="url(#ring)"
+          strokeWidth={6}
+          strokeLinecap="round"
+          strokeDasharray={`${c * v} ${c}`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      )}
       <text x="50%" y="54%" textAnchor="middle" fontSize={size / 4.6} fontWeight={700} fill="var(--text)">
         {pct(v)}
       </text>

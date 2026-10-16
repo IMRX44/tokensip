@@ -261,6 +261,29 @@ export const en = {
   "theme.system": "System",
   "theme.dark": "Dark",
   "theme.light": "Light",
+
+  "providers.anthropicBaseUrl": "Anthropic-compatible base URL",
+  "providers.anthropicBaseUrlHint": "Optional. Origin of a /v1/messages endpoint, e.g. https://api.example.com",
+  "providers.streamUsage": "Request usage on streams",
+  "providers.streamUsageHint":
+    "Sends stream_options.include_usage for exact stream accounting. Enable only if the provider supports it.",
+  "providers.editTitle": "Edit provider",
+  "settings.pricing": "Model pricing",
+  "settings.pricingBody":
+    "USD per 1M tokens. Models you use appear here automatically. New prices apply to new requests.",
+  "settings.pricingInput": "Input",
+  "settings.pricingOutput": "Output",
+  "settings.pricingCacheRead": "Cache read",
+  "settings.pricingCacheWrite": "Cache write",
+  "settings.pricingSet": "Set price",
+  "settings.pricingReset": "Reset",
+  "settings.pricingEmpty": "No traffic yet — models appear here after their first request.",
+  "price.override": "custom",
+  "price.list": "list price",
+  "price.family": "estimated",
+  "price.none": "no price",
+  "overview.unpriced": "{count} model(s) have no price, so their cost isn't counted: {models}",
+  "overview.unpricedCta": "Set prices",
 } as const;
 
 export type MessageKey = keyof typeof en;

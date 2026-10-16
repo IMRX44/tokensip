@@ -1,7 +1,7 @@
 import { Activity, Coins, Gauge, Plug, Sparkles, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AreaChart, Legend, Ring } from "../components/charts";
-import { Avatar, Empty, Segmented, Skeleton } from "../components/ui";
+import { Avatar, Callout, Empty, Segmented, Skeleton } from "../components/ui";
 import { useI18n } from "../i18n";
 import type { Overview } from "../lib/api";
 import { useApi } from "../lib/hooks";
@@ -88,6 +88,24 @@ export function OverviewPage() {
   return (
     <div className="page">
       {head}
+      {data.unpricedModels.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <Callout tone="warn">
+            {t("overview.unpriced", {
+              count: data.unpricedModels.length,
+              models: data.unpricedModels.slice(0, 5).join(", "),
+            })}{" "}
+            <button
+              type="button"
+              className="btn sm"
+              style={{ marginInlineStart: 6, height: 26 }}
+              onClick={() => navigate("/settings#pricing")}
+            >
+              {t("overview.unpricedCta")} →
+            </button>
+          </Callout>
+        </div>
+      )}
       <div className="grid grid-4">
         <div className="card hero-card span-2">
           <div className="row between">

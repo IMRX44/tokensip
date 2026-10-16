@@ -60,6 +60,7 @@ export interface CatalogProvider {
   local: boolean;
   requiresBaseUrl: boolean;
   autoPrefixCache: boolean;
+  streamUsageDefault: boolean;
   docsUrl?: string;
   keyUrl?: string;
 }
@@ -125,6 +126,7 @@ export interface Overview {
   }[];
   byProvider: { provider: string | null; requests: number; cost: number; baselineCost: number }[];
   cache: { entries: number; bytes: number; hits: number };
+  unpricedModels: string[];
 }
 
 export interface RequestItem {
@@ -163,9 +165,22 @@ export interface ProviderRecord {
   keyHint: string | null;
   enabled: boolean;
   priority: number;
+  streamUsage: boolean | null;
   createdAt: number;
   lastUsedAt: number | null;
   source: "db" | "env";
+}
+
+export type PriceSource = "override" | "list" | "family" | "none";
+export interface ModelPrice {
+  input: number;
+  output: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+}
+export interface PricingInfo {
+  models: { model: string; requests: number; lastSeen: number; source: PriceSource; price: ModelPrice | null }[];
+  overrides: Record<string, ModelPrice>;
 }
 
 export interface ApiKey {

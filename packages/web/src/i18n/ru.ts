@@ -267,4 +267,27 @@ export const ru: Messages = {
   "theme.system": "Системная",
   "theme.dark": "Тёмная",
   "theme.light": "Светлая",
+
+  "providers.anthropicBaseUrl": "Базовый URL, совместимый с Anthropic",
+  "providers.anthropicBaseUrlHint": "Необязательно. Адрес эндпоинта /v1/messages, например https://api.example.com",
+  "providers.streamUsage": "Запрашивать usage в потоках",
+  "providers.streamUsageHint":
+    "Отправляет stream_options.include_usage для точного учёта потоков. Включайте, только если провайдер это поддерживает.",
+  "providers.editTitle": "Изменить провайдера",
+  "settings.pricing": "Цены моделей",
+  "settings.pricingBody":
+    "USD за 1 млн токенов. Используемые модели появляются здесь автоматически. Новые цены применяются к новым запросам.",
+  "settings.pricingInput": "Вход",
+  "settings.pricingOutput": "Выход",
+  "settings.pricingCacheRead": "Чтение кэша",
+  "settings.pricingCacheWrite": "Запись кэша",
+  "settings.pricingSet": "Задать цену",
+  "settings.pricingReset": "Сбросить",
+  "settings.pricingEmpty": "Трафика пока нет — модели появятся после первого запроса.",
+  "price.override": "своя",
+  "price.list": "прайс",
+  "price.family": "оценка",
+  "price.none": "нет цены",
+  "overview.unpriced": "У {count} моделей нет цены, их стоимость не учитывается: {models}",
+  "overview.unpricedCta": "Задать цены",
 };

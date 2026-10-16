@@ -1,4 +1,4 @@
-import { ExternalLink, Plus, Server, Trash2, Zap } from "lucide-react";
+import { ExternalLink, Pencil, Plus, Server, Trash2, Zap } from "lucide-react";
 import { useState } from "react";
 import { Avatar, CopyButton, Empty, Field, Modal, Switch, useToast } from "../components/ui";
 import { useI18n } from "../i18n";
@@ -22,13 +22,109 @@ export function endpointFor(p: Pick<CatalogProvider, "id" | "surfaces">): {
   };
 }
 
+interface ProviderDraft {
+  name: string;
+  apiKey: string;
+  baseUrl: string;
+  anthropicBaseUrl: string;
+  streamUsage: boolean;
+}
+
+/** Shared form for adding and editing a provider. */
+function ProviderForm({
+  preset,
+  draft,
+  setDraft,
+  editing,
+}: {
+  preset: CatalogProvider;
+  draft: ProviderDraft;
+  setDraft(d: ProviderDraft): void;
+  editing: boolean;
+}) {
+  const { t } = useI18n();
+  const set = (patch: Partial<ProviderDraft>) => setDraft({ ...draft, ...patch });
+  const isCustom = preset.requiresBaseUrl || preset.local;
+  return (
+    <div className="stack">
+      <Field label={t("providers.name")}>
+        <input
+          className="input"
+          value={draft.name}
+          placeholder={preset.name}
+          onChange={(e) => set({ name: e.target.value })}
+        />
+      </Field>
+      {!preset.local && (
+        <Field
+          label={t("providers.apiKey")}
+          hint={
+            editing ? (
+              t("providers.apiKeyKeep")
+            ) : preset.keyUrl ? (
+              <a href={preset.keyUrl} target="_blank" rel="noreferrer noopener">
+                {t("providers.getKey")} <ExternalLink size={11} />
+              </a>
+            ) : undefined
+          }
+        >
+          <input
+            className="input mono"
+            type="password"
+            autoComplete="off"
+            value={draft.apiKey}
+            onChange={(e) => set({ apiKey: e.target.value })}
+          />
+        </Field>
+      )}
+      {(isCustom || editing) && preset.surfaces.openai && (
+        <Field label={t("providers.baseUrl")} hint={t("providers.baseUrlHint")}>
+          <input
+            className="input mono"
+            value={draft.baseUrl}
+            placeholder={preset.surfaces.openai.baseUrl || "https://api.example.com/v1"}
+            onChange={(e) => set({ baseUrl: e.target.value })}
+          />
+        </Field>
+      )}
+      {(isCustom || preset.surfaces.anthropic) && (
+        <Field label={t("providers.anthropicBaseUrl")} hint={t("providers.anthropicBaseUrlHint")}>
+          <input
+            className="input mono"
+            value={draft.anthropicBaseUrl}
+            placeholder={preset.surfaces.anthropic?.baseUrl || "https://api.example.com"}
+            onChange={(e) => set({ anthropicBaseUrl: e.target.value })}
+          />
+        </Field>
+      )}
+      {preset.surfaces.openai && (
+        <div className="list-row" style={{ padding: "4px 0" }}>
+          <div className="grow">
+            <div style={{ fontWeight: 550 }}>{t("providers.streamUsage")}</div>
+            <div className="small faint">{t("providers.streamUsageHint")}</div>
+          </div>
+          <Switch
+            checked={draft.streamUsage}
+            label={t("providers.streamUsage")}
+            onChange={(v) => set({ streamUsage: v })}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AddProvider({ catalog, onClose, onSaved }: { catalog: Catalog; onClose(): void; onSaved(): void }) {
   const { t } = useI18n();
   const toast = useToast();
   const [preset, setPreset] = useState<CatalogProvider | null>(null);
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [name, setName] = useState("");
+  const [draft, setDraft] = useState<ProviderDraft>({
+    name: "",
+    apiKey: "",
+    baseUrl: "",
+    anthropicBaseUrl: "",
+    streamUsage: false,
+  });
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
@@ -37,7 +133,14 @@ function AddProvider({ catalog, onClose, onSaved }: { catalog: Catalog; onClose(
     try {
       await api("/providers", {
         method: "POST",
-        body: { preset: preset.id, name: name || preset.name, apiKey: apiKey || null, baseUrl: baseUrl || null },
+        body: {
+          preset: preset.id,
+          name: draft.name || preset.name,
+          apiKey: draft.apiKey || null,
+          baseUrl: draft.baseUrl || null,
+          anthropicBaseUrl: draft.anthropicBaseUrl || null,
+          streamUsage: draft.streamUsage === Boolean(preset.streamUsageDefault) ? null : draft.streamUsage,
+        },
       });
       toast(t("common.saved"));
       onSaved();
@@ -54,7 +157,15 @@ function AddProvider({ catalog, onClose, onSaved }: { catalog: Catalog; onClose(
       <Modal title={t("providers.choose")} onClose={onClose} wide>
         <div className="preset-grid">
           {catalog.providers.map((p) => (
-            <button key={p.id} type="button" className="preset" onClick={() => setPreset(p)}>
+            <button
+              key={p.id}
+              type="button"
+              className="preset"
+              onClick={() => {
+                setPreset(p);
+                setDraft((d) => ({ ...d, streamUsage: Boolean(p.streamUsageDefault) }));
+              }}
+            >
               <Avatar id={p.id} name={p.name} />
               <span style={{ minWidth: 0 }}>
                 {p.name}
@@ -84,48 +195,85 @@ function AddProvider({ catalog, onClose, onSaved }: { catalog: Catalog; onClose(
             type="button"
             className="btn primary"
             onClick={() => void save()}
-            disabled={busy || (preset.requiresBaseUrl && !baseUrl)}
+            disabled={busy || (preset.requiresBaseUrl && !draft.baseUrl)}
           >
             {t("common.save")}
           </button>
         </>
       }
     >
-      <div className="stack">
-        <Field label={t("providers.name")}>
-          <input className="input" value={name} placeholder={preset.name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        {!preset.local && (
-          <Field
-            label={t("providers.apiKey")}
-            hint={
-              preset.keyUrl && (
-                <a href={preset.keyUrl} target="_blank" rel="noreferrer noopener">
-                  {t("providers.getKey")} <ExternalLink size={11} />
-                </a>
-              )
-            }
+      <ProviderForm preset={preset} draft={draft} setDraft={setDraft} editing={false} />
+    </Modal>
+  );
+}
+
+function EditProvider({
+  p,
+  preset,
+  onClose,
+  onSaved,
+}: {
+  p: ProviderRecord;
+  preset: CatalogProvider;
+  onClose(): void;
+  onSaved(): void;
+}) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [draft, setDraft] = useState<ProviderDraft>({
+    name: p.name,
+    apiKey: "",
+    baseUrl: p.baseUrl ?? "",
+    anthropicBaseUrl: p.anthropicBaseUrl ?? "",
+    streamUsage: p.streamUsage ?? Boolean(preset.streamUsageDefault),
+  });
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api(`/providers/${p.id}`, {
+        method: "PATCH",
+        body: {
+          name: draft.name || preset.name,
+          ...(draft.apiKey ? { apiKey: draft.apiKey } : {}),
+          baseUrl: draft.baseUrl || null,
+          anthropicBaseUrl: draft.anthropicBaseUrl || null,
+          streamUsage: draft.streamUsage === Boolean(preset.streamUsageDefault) ? null : draft.streamUsage,
+        },
+      });
+      toast(t("common.saved"));
+      onSaved();
+      onClose();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.code : t("common.error"), "bad");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={t("providers.editTitle")}
+      subtitle={preset.name}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => void save()}
+            disabled={busy || (preset.requiresBaseUrl && !draft.baseUrl)}
           >
-            <input
-              className="input mono"
-              type="password"
-              autoComplete="off"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-            />
-          </Field>
-        )}
-        {(preset.requiresBaseUrl || preset.local) && (
-          <Field label={t("providers.baseUrl")} hint={t("providers.baseUrlHint")}>
-            <input
-              className="input mono"
-              value={baseUrl}
-              placeholder={preset.surfaces.openai?.baseUrl || "https://example.com/v1"}
-              onChange={(e) => setBaseUrl(e.target.value)}
-            />
-          </Field>
-        )}
-      </div>
+            {t("common.save")}
+          </button>
+        </>
+      }
+    >
+      <ProviderForm preset={preset} draft={draft} setDraft={setDraft} editing />
     </Modal>
   );
 }
@@ -134,6 +282,7 @@ function ProviderRow({ p, catalog, onChange }: { p: ProviderRecord; catalog: Cat
   const { t, num } = useI18n();
   const toast = useToast();
   const [test, setTest] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const preset = catalog.providers.find((c) => c.id === p.preset);
 
   const runTest = async () => {
@@ -168,6 +317,14 @@ function ProviderRow({ p, catalog, onChange }: { p: ProviderRecord; catalog: Cat
       </button>
       {p.source === "db" && (
         <>
+          <button
+            type="button"
+            className="btn ghost sm icon-btn"
+            aria-label={t("common.edit")}
+            onClick={() => setEditing(true)}
+          >
+            <Pencil size={15} />
+          </button>
           <Switch
             checked={p.enabled}
             label={t("common.enabled")}
@@ -191,6 +348,7 @@ function ProviderRow({ p, catalog, onChange }: { p: ProviderRecord; catalog: Cat
           </button>
         </>
       )}
+      {editing && preset && <EditProvider p={p} preset={preset} onClose={() => setEditing(false)} onSaved={onChange} />}
     </div>
   );
 }
