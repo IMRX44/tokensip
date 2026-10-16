@@ -95,6 +95,19 @@ describe("settings API", () => {
     expect((await call("PUT", "/settings", { profile: "ultra" })).status).toBe(400);
     expect((await call("PUT", "/settings", { stageOptions: { targetRatio: 5 } })).status).toBe(400);
     expect((await call("PUT", "/settings", { overrides: { "not-a-stage": true } })).status).toBe(400);
+    // Profile changes reset overrides to {} — partial stage maps must be accepted.
+    const reset = await call("PUT", "/settings", { profile: "safe", overrides: {} });
+    expect(reset.status).toBe(200);
+    const one = await call("PUT", "/settings", { overrides: { "minify-json": true } });
+    expect(one.status).toBe(200);
+    expect(one.json.overrides).toEqual({ "minify-json": true });
+    const lab = await call("POST", "/optimize", {
+      protocol: "openai-chat",
+      overrides: { "normalize-whitespace": false },
+      payload: { messages: [{ role: "user", content: "a   \n\n\n\nb" }] },
+    });
+    expect(lab.status).toBe(200);
+    expect(lab.json.report.changed).toBe(false);
     const ok = await call("PUT", "/settings", { profile: "balanced", stageOptions: { targetRatio: 0.2 } });
     expect(ok.json.profile).toBe("balanced");
     expect(ok.json.stageOptions.targetRatio).toBe(0.2);

@@ -27,6 +27,19 @@ read-only providers: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` /
 `CEREBRAS_API_KEY`, `PERPLEXITY_API_KEY`, `COHERE_API_KEY`, `MOONSHOT_API_KEY`,
 `ZAI_API_KEY`, `DASHSCOPE_API_KEY`.
 
+**Any other OpenAI-compatible gateway or aggregator** can be configured the same way:
+
+| Variable | Description |
+| --- | --- |
+| `TOKENSIP_CUSTOM_BASE_URL` | OpenAI-compatible base URL, ending in `/v1` |
+| `TOKENSIP_CUSTOM_API_KEY` | Its API key |
+| `TOKENSIP_CUSTOM_ANTHROPIC_BASE_URL` | Optional origin of an Anthropic-compatible `/v1/messages` endpoint |
+| `TOKENSIP_CUSTOM_STREAM_USAGE` | `true` if it supports `stream_options.include_usage` (exact stream accounting) |
+| `TOKENSIP_CUSTOM_NAME` | Display name |
+
+It is served at `/custom/v1` (OpenAI format) and `/custom` (Anthropic format), and
+becomes the fallback for model names no other configured provider claims.
+
 ## CLI
 
 ```text

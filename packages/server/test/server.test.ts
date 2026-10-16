@@ -401,6 +401,23 @@ describe("stream completion", () => {
   });
 });
 
+describe("routing", () => {
+  it("sends model names no preset claims to a configured custom gateway", async () => {
+    const rec = ts.app.providers.create({
+      preset: "custom",
+      name: "Aggregator",
+      apiKey: "agg-key",
+      baseUrl: `${upstreamUrl}/v1`,
+    });
+    await (await chat({ model: "kimi-k3", messages: [{ role: "user", content: "x" }] })).text();
+    expect(last().headers.authorization).toBe("Bearer agg-key");
+    // Known families still go to their own provider.
+    await (await chat({ model: "gpt-4.1", messages: [{ role: "user", content: "x" }] })).text();
+    expect(last().headers.authorization).toBe("Bearer sk-upstream-secret");
+    ts.app.providers.delete(rec.id);
+  });
+});
+
 describe("environment-configured custom provider", () => {
   it("is routable without touching the dashboard", async () => {
     const s = await createTokenSipServer({

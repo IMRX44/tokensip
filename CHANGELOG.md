@@ -29,5 +29,23 @@ All notable changes to this project are documented here. The format follows
 - **CLI**: `start`, `demo`, `optimize`, `keys`, `reset-password`, `doctor`.
 - `@tokensip/core` with `createTokenSipFetch()` for in-process optimization.
 - Docker image (non-root, read-only friendly), Prometheus metrics, CI, CodeQL.
+- Any provider can expose an Anthropic-compatible endpoint; `TOKENSIP_CUSTOM_*`
+  environment variables for OpenAI-compatible gateways and aggregators.
+- Model pricing editor with model-family estimates for new model versions.
+- Test suites: property-based fuzzing, browser end-to-end, live SDK tests, benchmark.
+
+### Fixed (found by live and browser testing before release)
+
+- Streams are completed at the provider's end-of-stream event; previously a
+  provider that kept the connection open after `[DONE]` caused the response to
+  be logged as interrupted and never cached.
+- Changing the profile or toggling stages in Settings was rejected by validation.
+- `gpt-5` list prices no longer apply to `gpt-5-pro` (and similar tiers).
+- Compressed request bodies keep their `Content-Encoding`.
+
+### Performance
+
+- ~2× higher throughput for `balanced`/`extreme`: sampled token counting for
+  reports, cached lookups, batched request logging, prepared statements.
 
 [0.1.0]: https://github.com/IMRX44/tokensip/releases/tag/v0.1.0

@@ -134,7 +134,9 @@ Measured with `npx tokensip optimize` on the agent transcripts in [`examples/req
 
 > `safe` barely shortens the prompt on purpose: its job is to make the provider bill the repeated part at a fraction of the price, with **zero** change to what the model sees.
 
-Optimizer overhead is typically **under 1 ms** for `safe` and a few milliseconds for `balanced` on a 14k-token agent request.
+**Overhead:** on a 51 KB (~14k-token) agent request, TokenSip adds **≈2.5 ms** with `safe` and **≈3.5 ms** with `balanced`
+end-to-end (proxying included) — against model latencies measured in seconds. Reproduce with `npm run bench`
+([numbers](docs/how-it-works.md#performance)).
 
 ## 🎚️ Savings profiles
 
@@ -165,11 +167,18 @@ Use the auto-routing endpoint (`/v1`, routes by model name) or a provider-specif
 | DeepSeek | `http://localhost:8787/deepseek/v1` | `http://localhost:8787/deepseek` (Anthropic format) |
 | Mistral · xAI Grok · Groq · OpenRouter · Together · Fireworks · Cerebras · Perplexity · Cohere · Qwen | `http://localhost:8787/<id>/v1` | — |
 | Moonshot Kimi · Z.ai GLM | `http://localhost:8787/<id>/v1` | `http://localhost:8787/<id>` (Anthropic format) |
-| Azure OpenAI · any OpenAI-compatible API | `http://localhost:8787/p/<provider>/v1` | — |
+| Azure OpenAI · any OpenAI-compatible gateway or aggregator | `http://localhost:8787/custom/v1` | `http://localhost:8787/custom` (if it offers `/v1/messages`) |
 | Ollama · LM Studio · vLLM (local) | `http://localhost:8787/ollama/v1` … | — |
 
 Provider keys can be added in the dashboard (encrypted at rest) or picked up from
 the environment (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, …).
+Any other OpenAI-compatible gateway or aggregator works too — including its Anthropic-compatible endpoint:
+
+```bash
+TOKENSIP_CUSTOM_BASE_URL=https://api.example.com/v1 \
+TOKENSIP_CUSTOM_ANTHROPIC_BASE_URL=https://api.example.com \
+TOKENSIP_CUSTOM_API_KEY=... npx tokensip
+```
 
 ## 🤖 Works with your agents
 
@@ -275,6 +284,16 @@ All options, CLI commands and headers: [docs/configuration.md](docs/configuratio
 - [ ] Per-team usage reports and CSV export
 - [ ] Python package (`pip install tokensip`) for in-process optimization
 - [ ] More dashboard languages — [help translate](CONTRIBUTING.md#translations)!
+
+## ✅ Tested like infrastructure
+
+| Suite | What it covers |
+| --- | --- |
+| **Unit & integration** (`npm test`) | Every optimizer stage, protocol adapter, usage parser and price rule; the gateway against a mock provider — auth, CSRF, key swapping, byte-exact passthrough, streaming, caching, budgets, rate limits |
+| **Property-based fuzzing** | ~1,200 random conversations across all 4 wire formats × 5 profiles: never mutates input, never edits assistant turns, prefix-stable, tool calls stay paired |
+| **Browser end-to-end** (`npm run test:e2e`) | The whole dashboard in Chromium: setup, providers, keys, pricing, lab, RTL, 2FA — and zero console errors or CSP violations |
+| **Live** (`npm run test:live`) | The official OpenAI and Anthropic SDKs (JS and Python) through TokenSip against a real provider: chat, streaming, tool use, caching, aborts, concurrency |
+| **Benchmark** (`npm run bench`) | Added latency and throughput per profile, in separate processes |
 
 ## 🤝 Contributing
 

@@ -962,6 +962,9 @@ pre,
 .mobile-bar {
   display: none;
 }
+.sidebar-backdrop {
+  display: none;
+}
 
 @keyframes fade-in {
   from {
@@ -1016,6 +1019,16 @@ pre,
   }
   .sidebar.open {
     transform: none;
+  }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    border: 0;
+    padding: 0;
+    background: rgba(3, 6, 10, 0.55);
+    backdrop-filter: blur(3px);
   }
   .main {
     padding: 16px 16px 48px;

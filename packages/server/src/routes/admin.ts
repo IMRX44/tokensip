@@ -25,7 +25,7 @@ const httpUrl = z
 const settingsSchema = z
   .object({
     profile: profileEnum,
-    overrides: z.record(stageEnum, z.boolean()),
+    overrides: z.partialRecord(stageEnum, z.boolean()),
     stageOptions: z
       .object({
         dedupeMinTokens: z.number().int().min(20).max(100_000),
@@ -396,7 +396,7 @@ export async function adminRoutes(fastify: FastifyInstance, { app }: { app: Toke
         protocol: z.enum(["openai-chat", "openai-responses", "anthropic", "gemini"]),
         payload: z.record(z.string(), z.unknown()),
         profile: profileEnum.optional(),
-        overrides: z.record(stageEnum, z.boolean()).optional(),
+        overrides: z.partialRecord(stageEnum, z.boolean()).optional(),
         provider: z.string().max(64).optional(),
       })
       .safeParse(req.body);

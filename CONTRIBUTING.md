@@ -27,7 +27,10 @@ npm run dev:web        # dashboard on :5173 with hot reload (proxies /api to :87
 | --- | --- |
 | `npm run lint` / `npm run format` | Biome lint / auto-format |
 | `npm run typecheck` | TypeScript in all packages |
-| `npm test` | Vitest |
+| `npm test` | Unit, integration and property-based tests |
+| `npm run test:e2e` | Dashboard tests in Chromium (`npm run build` and `npx playwright install chromium` first) |
+| `npm run test:live` | Official SDKs against a real provider — set `TOKENSIP_LIVE_BASE_URL`, `TOKENSIP_LIVE_API_KEY` (and optionally `TOKENSIP_LIVE_ANTHROPIC_BASE_URL`) |
+| `npm run bench` | Added latency and throughput per profile |
 
 ## Repository layout
 

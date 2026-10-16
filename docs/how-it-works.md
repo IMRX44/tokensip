@@ -57,3 +57,30 @@ starts with exactly the bytes sent on turn *n*, so caches keep hitting.
 | [`@tokensip/core`](../packages/core) | The optimizer pipeline, protocol adapters, usage parsers, price book and provider catalog. Zero HTTP dependencies — embed it anywhere. |
 | [`tokensip`](../packages/server) | The gateway: Fastify server, SQLite storage (`node:sqlite`), vault, admin API, CLI and bundled dashboard. |
 | `@tokensip/web` | The dashboard (React + Vite), served by the gateway. |
+
+## Performance
+
+TokenSip runs on the request path, so it is built to stay out of the way:
+
+- prepared SQLite statements, cached provider and key lookups, and request logs
+  written in batches — no per-request disk writes on the hot path;
+- token *reports* use sampled counting for large texts (within a few percent of
+  exact); billing numbers always come from the provider;
+- streams are forwarded chunk by chunk and finish the moment the provider sends
+  its end-of-stream event; streaming bodies are only buffered when they can be
+  cached.
+
+`npm run bench` sends a real 51 KB (~14k-token) coding-agent request to a local
+mock provider, directly and through TokenSip, with the gateway in its own process.
+Results on a single core (Node 22):
+
+| Path | Added latency (p50, concurrency 1) | Throughput (concurrency 32) |
+| --- | ---: | ---: |
+| `off` | +2.0 ms | 586 req/s |
+| `safe` | +2.5 ms | 489 req/s |
+| `balanced` | +3.5 ms | 307 req/s |
+| `aggressive` | +3.0 ms | 328 req/s |
+| `extreme` | +4.7 ms | 253 req/s |
+
+Most of the `off` baseline is Node's HTTP stack receiving and re-sending a
+51 KB body; TokenSip's own logic is well under a millisecond of it.

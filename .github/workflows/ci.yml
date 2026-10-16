@@ -37,6 +37,20 @@ jobs:
           node packages/server/dist/cli.js optimize examples/requests/agent-openai.json --profile balanced
           node packages/server/dist/cli.js optimize examples/requests/agent-anthropic.json --profile safe
 
+  e2e:
+    name: Dashboard (browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:e2e
+
   docker:
     name: Docker image
     runs-on: ubuntu-latest

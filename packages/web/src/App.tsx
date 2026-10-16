@@ -71,6 +71,9 @@ function Shell({ auth, catalog, onAuthChange }: { auth: AuthState; catalog: Cata
 
   return (
     <div className="shell">
+      {open && (
+        <button type="button" className="sidebar-backdrop" aria-label="close menu" onClick={() => setOpen(false)} />
+      )}
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <div className="brand">
           <Logo size={34} />
