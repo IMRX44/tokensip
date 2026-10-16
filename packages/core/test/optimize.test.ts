@@ -101,6 +101,20 @@ describe("anthropic", () => {
     });
   });
 
+  it("is byte-for-byte prefix-stable across turns once caching applies", () => {
+    const turn1 = anthropicConversation();
+    const turn2 = anthropicConversation();
+    turn2.messages.push(
+      { role: "assistant", content: [{ type: "text", text: "You're welcome" }] },
+      { role: "user", content: "One more thing" },
+    );
+    const strip = (v: unknown) => JSON.parse(JSON.stringify(v), (k, val) => (k === "cache_control" ? undefined : val));
+    const a = optimize(turn1, { protocol: "anthropic", profile: "safe" }).payload as Record<string, any>;
+    const b = optimize(turn2, { protocol: "anthropic", profile: "safe" }).payload as Record<string, any>;
+    expect(JSON.stringify(strip(b.messages.slice(0, a.messages.length)))).toBe(JSON.stringify(strip(a.messages)));
+    expect(JSON.stringify(strip(b.system))).toBe(JSON.stringify(strip(a.system)));
+  });
+
   it("respects client-managed cache_control", () => {
     const input = anthropicConversation() as Record<string, any>;
     input.system = [

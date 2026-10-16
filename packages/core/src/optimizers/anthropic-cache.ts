@@ -67,6 +67,17 @@ export const anthropicCacheBreakpoints: Stage = {
     }
 
     let placed = 0;
+    // Keep the wire representation byte-stable across turns: a breakpoint needs block content,
+    // and the breakpoint moves every turn, so every user message uses block form consistently.
+    if (Array.isArray(p.messages)) {
+      for (const m of p.messages) {
+        if (isObj(m) && m.role === "user" && typeof m.content === "string" && m.content) {
+          m.content = [{ type: "text", text: m.content }];
+        }
+      }
+    }
+    if (typeof p.system === "string" && p.system) p.system = [{ type: "text", text: p.system }];
+
     if (Array.isArray(p.tools) && p.tools.length > 0) {
       const last = p.tools[p.tools.length - 1];
       if (isObj(last)) {
@@ -74,10 +85,7 @@ export const anthropicCacheBreakpoints: Stage = {
         placed++;
       }
     }
-    if (typeof p.system === "string" && p.system) {
-      p.system = [{ type: "text", text: p.system, cache_control: { type: "ephemeral" } }];
-      placed++;
-    } else if (Array.isArray(p.system)) {
+    if (Array.isArray(p.system)) {
       for (let i = p.system.length - 1; i >= 0; i--) {
         const block = p.system[i];
         if (isObj(block) && block.type === "text" && block.text) {

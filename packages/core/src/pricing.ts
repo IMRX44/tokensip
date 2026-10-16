@@ -66,12 +66,49 @@ export const DEFAULT_PRICES: Record<string, ModelPrice> = {
   "llama-3.1-8b-instant": { input: 0.05, output: 0.08 },
 };
 
+/**
+ * Family fallbacks for model names the table doesn't know yet (new versions,
+ * dated snapshots, aggregator aliases). Checked only after exact and prefix
+ * matches fail; results are reported as `estimated`.
+ */
+export const FAMILY_PRICES: [RegExp, ModelPrice][] = [
+  [/claude.*opus|opus.*claude/, { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 }],
+  [/claude.*sonnet|sonnet.*claude/, { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 }],
+  [/claude.*haiku|haiku.*claude/, { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 }],
+  [/^gpt-\d.*nano/, { input: 0.05, output: 0.4, cacheRead: 0.005 }],
+  [/^gpt-\d.*mini/, { input: 0.25, output: 2, cacheRead: 0.025 }],
+  [/^gpt-\d.*pro/, { input: 15, output: 120 }],
+  [/^gpt-[5-9]/, { input: 1.25, output: 10, cacheRead: 0.125 }],
+  [/^o\d.*mini/, { input: 1.1, output: 4.4, cacheRead: 0.275 }],
+  [/gemini.*flash-lite/, { input: 0.1, output: 0.4, cacheRead: 0.025 }],
+  [/gemini.*flash/, { input: 0.3, output: 2.5, cacheRead: 0.075 }],
+  [/gemini.*pro/, { input: 1.25, output: 10, cacheRead: 0.31 }],
+  [/deepseek/, { input: 0.28, output: 0.42, cacheRead: 0.028 }],
+  [/grok.*mini/, { input: 0.3, output: 0.5, cacheRead: 0.075 }],
+  [/grok/, { input: 3, output: 15, cacheRead: 0.75 }],
+  [/kimi/, { input: 0.6, output: 2.5, cacheRead: 0.15 }],
+  [/glm/, { input: 0.6, output: 2.2, cacheRead: 0.11 }],
+  [/mistral.*large/, { input: 2, output: 6 }],
+  [/mistral.*small|ministral/, { input: 0.1, output: 0.3 }],
+];
+
+export type PriceSource = "override" | "list" | "family" | "none";
+
+/**
+ * A prefix match only counts when what follows is a version, date or snapshot
+ * tag (`claude-sonnet-4` → `claude-sonnet-4-5-20250929`), never a different
+ * tier (`gpt-5` must not price `gpt-5-pro`, `o3` must not price `o3-pro`).
+ */
+const SNAPSHOT_SUFFIX = /^(?:[-.:@_](?:\d+|latest|preview|exp|experimental|beta|v\d+))*$/;
+
 export class PriceBook {
   private readonly prices: Map<string, ModelPrice>;
+  private readonly overrides: Set<string>;
   private keys: string[];
 
   constructor(overrides: Record<string, ModelPrice> = {}, base: Record<string, ModelPrice> = DEFAULT_PRICES) {
     this.prices = new Map(Object.entries({ ...base, ...overrides }));
+    this.overrides = new Set(Object.keys(overrides));
     this.keys = this.sortedKeys();
   }
 
@@ -89,15 +126,28 @@ export class PriceBook {
   }
 
   lookup(model: string | undefined): ModelPrice | undefined {
-    if (!model) return undefined;
+    return this.resolve(model).price;
+  }
+
+  /** Price for a model plus where it came from. */
+  resolve(model: string | undefined): { price?: ModelPrice; source: PriceSource; matched?: string } {
+    if (!model) return { source: "none" };
     const normalized = model.toLowerCase().replace(/^models\//, "");
     const bare = normalized.includes("/") ? normalized.slice(normalized.lastIndexOf("/") + 1) : normalized;
     for (const candidate of [normalized, bare]) {
       const exact = this.prices.get(candidate);
-      if (exact) return exact;
-      for (const key of this.keys) if (candidate.startsWith(key)) return this.prices.get(key);
+      if (exact)
+        return { price: exact, source: this.overrides.has(candidate) ? "override" : "list", matched: candidate };
+      for (const key of this.keys) {
+        if (candidate.startsWith(key) && SNAPSHOT_SUFFIX.test(candidate.slice(key.length))) {
+          return { price: this.prices.get(key), source: this.overrides.has(key) ? "override" : "list", matched: key };
+        }
+      }
     }
-    return undefined;
+    for (const [re, price] of FAMILY_PRICES) {
+      if (re.test(bare)) return { price, source: "family", matched: re.source };
+    }
+    return { source: "none" };
   }
 
   /**

@@ -131,6 +131,31 @@ describe("PriceBook", () => {
   });
 });
 
+describe("PriceBook.resolve", () => {
+  const book = new PriceBook({ "my-model": { input: 1, output: 2 } });
+  it.each([
+    ["gpt-5.5-pro", "family", 15],
+    ["gpt-5.6-sol", "family", 1.25],
+    ["o3-2025-04-16", "list", 2],
+    ["gpt-4o-mini-2024-07-18", "list", 0.15],
+    ["claude-sonnet-4-5-20250929", "list", 3],
+    ["claude-opus-4-1-20250805", "list", 15],
+    ["claude-sonnet-5", "family", 3],
+    ["gemini-2.5-flash-preview-05-20", "list", 0.3],
+    ["deepseek-v4-flash-0731", "family", 0.28],
+    ["openrouter/anthropic/claude-sonnet-4.5", "list", 3],
+    ["my-model", "override", 1],
+  ])("%s → %s", (model, source, input) => {
+    const r = book.resolve(model);
+    expect(r.source).toBe(source);
+    expect(r.price?.input).toBe(input);
+  });
+  it("never prices a different tier through a prefix", () => {
+    expect(book.resolve("o3-pro").source).toBe("none");
+    expect(book.resolve("gpt-4o-audio-preview").source).toBe("none");
+  });
+});
+
 describe("providers", () => {
   it("auto-routes by model name", () => {
     expect(matchProviderByModel("claude-opus-4-5", PROVIDERS)?.id).toBe("anthropic");
