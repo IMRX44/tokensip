@@ -170,3 +170,21 @@ describe("history-window", () => {
     }
   });
 });
+
+describe("context-budget", () => {
+  it("lands close to the target ratio of the original prompt", () => {
+    const input = openaiAgentConversation();
+    const approx = (p: unknown) => JSON.stringify(p).length;
+    for (const targetRatio of [0.1, 0.25, 0.5]) {
+      const { payload, report } = optimize(input, {
+        protocol: "openai-chat",
+        stages: ["context-budget"],
+        options: { targetRatio, minBudgetTokens: 64 },
+      });
+      expect(report.lossy).toBe(true);
+      const ratio = approx((payload as typeof input).messages) / approx(input.messages);
+      expect(ratio).toBeGreaterThan(targetRatio * 0.5);
+      expect(ratio).toBeLessThan(targetRatio * 1.6);
+    }
+  });
+});

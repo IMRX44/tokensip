@@ -16,8 +16,8 @@ function promptSize(ctx: StageContext): number {
  *
  *   1. head/tail-truncate older tool results
  *   2. compact whitespace in all prose
- *   3. drop the middle of the conversation (task + latest steps survive)
- *   4. head/tail-truncate every remaining text, newest messages last
+ *   3. head/tail-truncate every text proportionally (newest message weighted 2x)
+ *   4. only if still over: drop the middle of the conversation
  *
  * Expect noticeably worse answers — this trades quality for cost.
  */
@@ -58,7 +58,25 @@ export const contextBudget: Stage = {
       }
     }
 
-    // 3. Shrink the conversation window step by step.
+    // 3. Proportionally truncate every remaining text so all turns survive in abbreviated form.
+    //    The newest message gets double weight; shares are normalized so they sum to the target.
+    if (over()) {
+      const slots = ctx.adapter.slots(ctx.payload);
+      const lastIndex = Math.max(...slots.map((s) => s.messageIndex));
+      const weightOf = (messageIndex: number) => (messageIndex === lastIndex ? 2 : 1);
+      const weighted = slots.reduce((sum, s) => sum + approx(s.get()) * weightOf(s.messageIndex), 0);
+      for (const slot of slots) {
+        const size = approx(slot.get());
+        const share = Math.max(48, Math.floor((target * size * weightOf(slot.messageIndex)) / Math.max(1, weighted)));
+        const next = headTail(slot.get(), share * 4, slot.role === "system" ? "instructions" : "content");
+        if (next !== slot.get()) {
+          tokensSaved += rewrite(ctx, slot, next);
+          edits++;
+        }
+      }
+    }
+
+    // 4. Last resort for very long sessions: drop the middle of the conversation (task + latest steps survive).
     for (
       let max = ctx.adapter.messages(ctx.payload).length - 2;
       over() && max >= 3;
@@ -67,23 +85,6 @@ export const contextBudget: Stage = {
       const r = windowMessages(ctx, max);
       tokensSaved += r.tokensSaved;
       edits += r.dropped;
-    }
-
-    // 4. Proportionally truncate whatever is left; latest messages keep a bigger share.
-    if (over()) {
-      const slots = ctx.adapter.slots(ctx.payload);
-      const total = promptSize(ctx);
-      const lastIndex = Math.max(...slots.map((s) => s.messageIndex));
-      for (const slot of slots) {
-        const size = approx(slot.get());
-        const weight = slot.messageIndex === lastIndex ? 2 : 1;
-        const share = Math.max(64, Math.floor(target * (size / total) * weight));
-        const next = headTail(slot.get(), share * 4, slot.role === "system" ? "instructions" : "content");
-        if (next !== slot.get()) {
-          tokensSaved += rewrite(ctx, slot, next);
-          edits++;
-        }
-      }
     }
 
     const finalSize = promptSize(ctx);
