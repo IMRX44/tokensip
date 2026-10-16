@@ -66,8 +66,12 @@ export interface OptimizeOptions {
   provider?: string;
   /** Mixed into derived cache keys so tenants never share a routing key. */
   cacheKeySalt?: string;
-  /** `exact` uses a BPE tokenizer, `approx` uses chars/4. Default `exact`. */
-  tokenCounting?: "exact" | "approx";
+  /**
+   * `exact`: BPE-tokenize everything (accurate, slowest).
+   * `fast`: estimate the prompt total, tokenize only the text that changed (default for the proxy).
+   * `approx`: chars/4 everywhere.
+   */
+  tokenCounting?: "exact" | "fast" | "approx";
 }
 
 export interface StageReport {

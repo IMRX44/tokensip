@@ -1,0 +1,62 @@
+{
+  "name": "tokensip",
+  "version": "0.1.0",
+  "description": "The token-saving AI gateway. Drop-in proxy for OpenAI, Anthropic, Gemini and 20+ providers that cuts LLM costs with prompt-cache optimization, lossless compression and a response cache — without changing model behavior.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "tokensip": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "web",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-web.mjs",
+    "dev": "tsc -p tsconfig.json && node dist/cli.js start"
+  },
+  "keywords": [
+    "llm",
+    "ai-gateway",
+    "llm-proxy",
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini",
+    "deepseek",
+    "token-optimization",
+    "prompt-caching",
+    "cost-optimization",
+    "ai-agents",
+    "self-hosted"
+  ],
+  "author": "IMRX44",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IMRX44/tokensip.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/IMRX44/tokensip#readme",
+  "bugs": "https://github.com/IMRX44/tokensip/issues",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.3",
+    "@fastify/helmet": "^13.2.0",
+    "@fastify/static": "^10.1.6",
+    "@tokensip/core": "^0.1.0",
+    "fastify": "^5.12.7",
+    "zod": "^4.6.7"
+  }
+}

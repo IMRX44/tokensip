@@ -28,7 +28,8 @@ export const contextBudget: Stage = {
     "Squeezes the prompt down to a target fraction of its size. Large quality loss — the model sees a summary-like view.",
   run(ctx) {
     const original = promptSize(ctx);
-    const target = Math.max(ctx.options.minBudgetTokens, Math.ceil(original * ctx.options.targetRatio));
+    // The budget is a fraction of what the client originally sent, not of what earlier stages left.
+    const target = Math.max(ctx.options.minBudgetTokens, Math.ceil(ctx.originalSize * ctx.options.targetRatio));
     if (original <= target) return { edits: 0, tokensSaved: 0, note: "already within budget" };
 
     let edits = 0;
@@ -58,7 +59,11 @@ export const contextBudget: Stage = {
     }
 
     // 3. Shrink the conversation window step by step.
-    for (let max = ctx.adapter.messages(ctx.payload).length - 2; over() && max >= 3; max = Math.floor(max * 0.6)) {
+    for (
+      let max = ctx.adapter.messages(ctx.payload).length - 2;
+      over() && max >= 3;
+      max -= Math.max(2, Math.floor(max * 0.2))
+    ) {
       const r = windowMessages(ctx, max);
       tokensSaved += r.tokensSaved;
       edits += r.dropped;
@@ -85,7 +90,7 @@ export const contextBudget: Stage = {
     return {
       edits,
       tokensSaved,
-      note: `prompt ~${original} → ~${finalSize} tokens (target ${target})`,
+      note: `~${ctx.originalSize} → ~${finalSize} tokens (target ${target})`,
     };
   },
 };

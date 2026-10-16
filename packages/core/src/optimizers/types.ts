@@ -9,6 +9,8 @@ export interface StageContext {
   provider?: string;
   cacheKeySalt?: string;
   options: Required<StageOptions>;
+  /** Approximate prompt size (chars/4) before any stage ran. */
+  originalSize: number;
   /** Token counter configured for this run. */
   count(text: string): number;
 }

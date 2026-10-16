@@ -59,7 +59,7 @@ export function optimize<T>(payload: T, opts: OptimizeOptions): OptimizeResult<T
         tokensSaved: 0,
         lossy: false,
         stages: [],
-        durationMs: performance.now() - started,
+        durationMs: Math.round((performance.now() - started) * 100) / 100,
       },
     };
   }
@@ -78,6 +78,7 @@ export function optimize<T>(payload: T, opts: OptimizeOptions): OptimizeResult<T
     provider: opts.provider,
     cacheKeySalt: opts.cacheKeySalt,
     options: { ...DEFAULT_STAGE_OPTIONS, ...opts.options },
+    originalSize: totalApprox(),
     count,
   };
 
