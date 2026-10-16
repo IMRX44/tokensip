@@ -1,0 +1,105 @@
+{
+  "model": "claude-sonnet-4-5",
+  "max_tokens": 4096,
+  "system": "You are an autonomous coding agent working in a Python repository.   \n\n\n\n## Rules\n- Read files before editing them.  \n- Keep diffs minimal.   \n- Run the tests after each change.\nYou are an autonomous coding agent working in a Python repository.   \n\n\n\n## Rules\n- Read files before editing them.  \n- Keep diffs minimal.   \n- Run the tests after each change.\nYou are an autonomous coding agent working in a Python repository.   \n\n\n\n## Rules\n- Read files before editing them.  \n- Keep diffs minimal.   \n- Run the tests after each change.\nYou are an autonomous coding agent working in a Python repository.   \n\n\n\n## Rules\n- Read files before editing them.  \n- Keep diffs minimal.   \n- Run the tests after each change.\n",
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Read a file from the repository",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "name": "run_tests",
+      "description": "Run the test suite",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "tests/test_api.py::test_empty_payload fails. Find and fix the bug."
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me look at the handler."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01",
+          "name": "read_file",
+          "input": {
+            "path": "app/api.py"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01",
+          "content": "\ndef handler_0(request):\n    value_1 = service.compute(1, retries=3, timeout=2.5)\n    value_2 = service.compute(2, retries=3, timeout=2.5)\n    value_3 = service.compute(3, retries=3, timeout=2.5)\n    value_4 = service.compute(4, retries=3, timeout=2.5)\n    value_5 = service.compute(5, retries=3, timeout=2.5)\n    value_6 = service.compute(6, retries=3, timeout=2.5)\n    value_7 = service.compute(7, retries=3, timeout=2.5)\n    value_8 = service.compute(8, retries=3, timeout=2.5)\n    value_9 = service.compute(9, retries=3, timeout=2.5)\n\ndef handler_10(request):\n    value_11 = service.compute(11, retries=3, timeout=2.5)\n    value_12 = service.compute(12, retries=3, timeout=2.5)\n    value_13 = service.compute(13, retries=3, timeout=2.5)\n    value_14 = service.compute(14, retries=3, timeout=2.5)\n    value_15 = service.compute(15, retries=3, timeout=2.5)\n    value_16 = service.compute(16, retries=3, timeout=2.5)\n    value_17 = service.compute(17, retries=3, timeout=2.5)\n    value_18 = service.compute(18, retries=3, timeout=2.5)\n    value_19 = service.compute(19, retries=3, timeout=2.5)\n\ndef handler_20(request):\n    value_21 = service.compute(21, retries=3, timeout=2.5)\n    value_22 = service.compute(22, retries=3, timeout=2.5)\n    value_23 = service.compute(23, retries=3, timeout=2.5)\n    value_24 = service.compute(24, retries=3, timeout=2.5)\n    value_25 = service.compute(25, retries=3, timeout=2.5)\n    value_26 = service.compute(26, retries=3, timeout=2.5)\n    value_27 = service.compute(27, retries=3, timeout=2.5)\n    value_28 = service.compute(28, retries=3, timeout=2.5)\n    value_29 = service.compute(29, retries=3, timeout=2.5)\n\ndef handler_30(request):\n    value_31 = service.compute(31, retries=3, timeout=2.5)\n    value_32 = service.compute(32, retries=3, timeout=2.5)\n    value_33 = service.compute(33, retries=3, timeout=2.5)\n    value_34 = service.compute(34, retries=3, timeout=2.5)\n    value_35 = service.compute(35, retries=3, timeout=2.5)\n    value_36 = service.compute(36, retries=3, timeout=2.5)\n    value_37 = service.compute(37, retries=3, timeout=2.5)\n    value_38 = service.compute(38, retries=3, timeout=2.5)\n    value_39 = service.compute(39, retries=3, timeout=2.5)\n\ndef handler_40(request):\n    value_41 = service.compute(41, retries=3, timeout=2.5)\n    value_42 = service.compute(42, retries=3, timeout=2.5)\n    value_43 = service.compute(43, retries=3, timeout=2.5)\n    value_44 = service.compute(44, retries=3, timeout=2.5)\n    value_45 = service.compute(45, retries=3, timeout=2.5)\n    value_46 = service.compute(46, retries=3, timeout=2.5)\n    value_47 = service.compute(47, retries=3, timeout=2.5)\n    value_48 = service.compute(48, retries=3, timeout=2.5)\n    value_49 = service.compute(49, retries=3, timeout=2.5)\n\ndef handler_50(request):\n    value_51 = service.compute(51, retries=3, timeout=2.5)\n    value_52 = service.compute(52, retries=3, timeout=2.5)\n    value_53 = service.compute(53, retries=3, timeout=2.5)\n    value_54 = service.compute(54, retries=3, timeout=2.5)\n    value_55 = service.compute(55, retries=3, timeout=2.5)\n    value_56 = service.compute(56, retries=3, timeout=2.5)\n    value_57 = service.compute(57, retries=3, timeout=2.5)\n    value_58 = service.compute(58, retries=3, timeout=2.5)\n    value_59 = service.compute(59, retries=3, timeout=2.5)\n\ndef handler_60(request):\n    value_61 = service.compute(61, retries=3, timeout=2.5)\n    value_62 = service.compute(62, retries=3, timeout=2.5)\n    value_63 = service.compute(63, retries=3, timeout=2.5)\n    value_64 = service.compute(64, retries=3, timeout=2.5)\n    value_65 = service.compute(65, retries=3, timeout=2.5)\n    value_66 = service.compute(66, retries=3, timeout=2.5)\n    value_67 = service.compute(67, retries=3, timeout=2.5)\n    value_68 = service.compute(68, retries=3, timeout=2.5)\n    value_69 = service.compute(69, retries=3, timeout=2.5)\n\ndef handler_70(request):\n    value_71 = service.compute(71, retries=3, timeout=2.5)\n    value_72 = service.compute(72, retries=3, timeout=2.5)\n    value_73 = service.compute(73, retries=3, timeout=2.5)\n    value_74 = service.compute(74, retries=3, timeout=2.5)\n    value_75 = service.compute(75, retries=3, timeout=2.5)\n    value_76 = service.compute(76, retries=3, timeout=2.5)\n    value_77 = service.compute(77, retries=3, timeout=2.5)\n    value_78 = service.compute(78, retries=3, timeout=2.5)\n    value_79 = service.compute(79, retries=3, timeout=2.5)\n\ndef handler_80(request):\n    value_81 = service.compute(81, retries=3, timeout=2.5)\n    value_82 = service.compute(82, retries=3, timeout=2.5)\n    value_83 = service.compute(83, retries=3, timeout=2.5)\n    value_84 = service.compute(84, retries=3, timeout=2.5)\n    value_85 = service.compute(85, retries=3, timeout=2.5)\n    value_86 = service.compute(86, retries=3, timeout=2.5)\n    value_87 = service.compute(87, retries=3, timeout=2.5)\n    value_88 = service.compute(88, retries=3, timeout=2.5)\n    value_89 = service.compute(89, retries=3, timeout=2.5)\n\ndef handler_90(request):\n    value_91 = service.compute(91, retries=3, timeout=2.5)\n    value_92 = service.compute(92, retries=3, timeout=2.5)\n    value_93 = service.compute(93, retries=3, timeout=2.5)\n    value_94 = service.compute(94, retries=3, timeout=2.5)\n    value_95 = service.compute(95, retries=3, timeout=2.5)\n    value_96 = service.compute(96, retries=3, timeout=2.5)\n    value_97 = service.compute(97, retries=3, timeout=2.5)\n    value_98 = service.compute(98, retries=3, timeout=2.5)\n    value_99 = service.compute(99, retries=3, timeout=2.5)\n\ndef handler_100(request):\n    value_101 = service.compute(101, retries=3, timeout=2.5)\n    value_102 = service.compute(102, retries=3, timeout=2.5)\n    value_103 = service.compute(103, retries=3, timeout=2.5)\n    value_104 = service.compute(104, retries=3, timeout=2.5)\n    value_105 = service.compute(105, retries=3, timeout=2.5)\n    value_106 = service.compute(106, retries=3, timeout=2.5)\n    value_107 = service.compute(107, retries=3, timeout=2.5)\n    value_108 = service.compute(108, retries=3, timeout=2.5)\n    value_109 = service.compute(109, retries=3, timeout=2.5)\n\ndef handler_110(request):\n    value_111 = service.compute(111, retries=3, timeout=2.5)\n    value_112 = service.compute(112, retries=3, timeout=2.5)\n    value_113 = service.compute(113, retries=3, timeout=2.5)\n    value_114 = service.compute(114, retries=3, timeout=2.5)\n    value_115 = service.compute(115, retries=3, timeout=2.5)\n    value_116 = service.compute(116, retries=3, timeout=2.5)\n    value_117 = service.compute(117, retries=3, timeout=2.5)\n    value_118 = service.compute(118, retries=3, timeout=2.5)\n    value_119 = service.compute(119, retries=3, timeout=2.5)"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_02",
+          "name": "run_tests",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_02",
+          "content": "FAILED tests/test_api.py::test_empty_payload - KeyError: body\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\nPASSED tests/test_api.py::test_case\n"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_03",
+          "name": "read_file",
+          "input": {
+            "path": "app/api.py"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_03",
+          "content": "\ndef handler_0(request):\n    value_1 = service.compute(1, retries=3, timeout=2.5)\n    value_2 = service.compute(2, retries=3, timeout=2.5)\n    value_3 = service.compute(3, retries=3, timeout=2.5)\n    value_4 = service.compute(4, retries=3, timeout=2.5)\n    value_5 = service.compute(5, retries=3, timeout=2.5)\n    value_6 = service.compute(6, retries=3, timeout=2.5)\n    value_7 = service.compute(7, retries=3, timeout=2.5)\n    value_8 = service.compute(8, retries=3, timeout=2.5)\n    value_9 = service.compute(9, retries=3, timeout=2.5)\n\ndef handler_10(request):\n    value_11 = service.compute(11, retries=3, timeout=2.5)\n    value_12 = service.compute(12, retries=3, timeout=2.5)\n    value_13 = service.compute(13, retries=3, timeout=2.5)\n    value_14 = service.compute(14, retries=3, timeout=2.5)\n    value_15 = service.compute(15, retries=3, timeout=2.5)\n    value_16 = service.compute(16, retries=3, timeout=2.5)\n    value_17 = service.compute(17, retries=3, timeout=2.5)\n    value_18 = service.compute(18, retries=3, timeout=2.5)\n    value_19 = service.compute(19, retries=3, timeout=2.5)\n\ndef handler_20(request):\n    value_21 = service.compute(21, retries=3, timeout=2.5)\n    value_22 = service.compute(22, retries=3, timeout=2.5)\n    value_23 = service.compute(23, retries=3, timeout=2.5)\n    value_24 = service.compute(24, retries=3, timeout=2.5)\n    value_25 = service.compute(25, retries=3, timeout=2.5)\n    value_26 = service.compute(26, retries=3, timeout=2.5)\n    value_27 = service.compute(27, retries=3, timeout=2.5)\n    value_28 = service.compute(28, retries=3, timeout=2.5)\n    value_29 = service.compute(29, retries=3, timeout=2.5)\n\ndef handler_30(request):\n    value_31 = service.compute(31, retries=3, timeout=2.5)\n    value_32 = service.compute(32, retries=3, timeout=2.5)\n    value_33 = service.compute(33, retries=3, timeout=2.5)\n    value_34 = service.compute(34, retries=3, timeout=2.5)\n    value_35 = service.compute(35, retries=3, timeout=2.5)\n    value_36 = service.compute(36, retries=3, timeout=2.5)\n    value_37 = service.compute(37, retries=3, timeout=2.5)\n    value_38 = service.compute(38, retries=3, timeout=2.5)\n    value_39 = service.compute(39, retries=3, timeout=2.5)\n\ndef handler_40(request):\n    value_41 = service.compute(41, retries=3, timeout=2.5)\n    value_42 = service.compute(42, retries=3, timeout=2.5)\n    value_43 = service.compute(43, retries=3, timeout=2.5)\n    value_44 = service.compute(44, retries=3, timeout=2.5)\n    value_45 = service.compute(45, retries=3, timeout=2.5)\n    value_46 = service.compute(46, retries=3, timeout=2.5)\n    value_47 = service.compute(47, retries=3, timeout=2.5)\n    value_48 = service.compute(48, retries=3, timeout=2.5)\n    value_49 = service.compute(49, retries=3, timeout=2.5)\n\ndef handler_50(request):\n    value_51 = service.compute(51, retries=3, timeout=2.5)\n    value_52 = service.compute(52, retries=3, timeout=2.5)\n    value_53 = service.compute(53, retries=3, timeout=2.5)\n    value_54 = service.compute(54, retries=3, timeout=2.5)\n    value_55 = service.compute(55, retries=3, timeout=2.5)\n    value_56 = service.compute(56, retries=3, timeout=2.5)\n    value_57 = service.compute(57, retries=3, timeout=2.5)\n    value_58 = service.compute(58, retries=3, timeout=2.5)\n    value_59 = service.compute(59, retries=3, timeout=2.5)\n\ndef handler_60(request):\n    value_61 = service.compute(61, retries=3, timeout=2.5)\n    value_62 = service.compute(62, retries=3, timeout=2.5)\n    value_63 = service.compute(63, retries=3, timeout=2.5)\n    value_64 = service.compute(64, retries=3, timeout=2.5)\n    value_65 = service.compute(65, retries=3, timeout=2.5)\n    value_66 = service.compute(66, retries=3, timeout=2.5)\n    value_67 = service.compute(67, retries=3, timeout=2.5)\n    value_68 = service.compute(68, retries=3, timeout=2.5)\n    value_69 = service.compute(69, retries=3, timeout=2.5)\n\ndef handler_70(request):\n    value_71 = service.compute(71, retries=3, timeout=2.5)\n    value_72 = service.compute(72, retries=3, timeout=2.5)\n    value_73 = service.compute(73, retries=3, timeout=2.5)\n    value_74 = service.compute(74, retries=3, timeout=2.5)\n    value_75 = service.compute(75, retries=3, timeout=2.5)\n    value_76 = service.compute(76, retries=3, timeout=2.5)\n    value_77 = service.compute(77, retries=3, timeout=2.5)\n    value_78 = service.compute(78, retries=3, timeout=2.5)\n    value_79 = service.compute(79, retries=3, timeout=2.5)\n\ndef handler_80(request):\n    value_81 = service.compute(81, retries=3, timeout=2.5)\n    value_82 = service.compute(82, retries=3, timeout=2.5)\n    value_83 = service.compute(83, retries=3, timeout=2.5)\n    value_84 = service.compute(84, retries=3, timeout=2.5)\n    value_85 = service.compute(85, retries=3, timeout=2.5)\n    value_86 = service.compute(86, retries=3, timeout=2.5)\n    value_87 = service.compute(87, retries=3, timeout=2.5)\n    value_88 = service.compute(88, retries=3, timeout=2.5)\n    value_89 = service.compute(89, retries=3, timeout=2.5)\n\ndef handler_90(request):\n    value_91 = service.compute(91, retries=3, timeout=2.5)\n    value_92 = service.compute(92, retries=3, timeout=2.5)\n    value_93 = service.compute(93, retries=3, timeout=2.5)\n    value_94 = service.compute(94, retries=3, timeout=2.5)\n    value_95 = service.compute(95, retries=3, timeout=2.5)\n    value_96 = service.compute(96, retries=3, timeout=2.5)\n    value_97 = service.compute(97, retries=3, timeout=2.5)\n    value_98 = service.compute(98, retries=3, timeout=2.5)\n    value_99 = service.compute(99, retries=3, timeout=2.5)\n\ndef handler_100(request):\n    value_101 = service.compute(101, retries=3, timeout=2.5)\n    value_102 = service.compute(102, retries=3, timeout=2.5)\n    value_103 = service.compute(103, retries=3, timeout=2.5)\n    value_104 = service.compute(104, retries=3, timeout=2.5)\n    value_105 = service.compute(105, retries=3, timeout=2.5)\n    value_106 = service.compute(106, retries=3, timeout=2.5)\n    value_107 = service.compute(107, retries=3, timeout=2.5)\n    value_108 = service.compute(108, retries=3, timeout=2.5)\n    value_109 = service.compute(109, retries=3, timeout=2.5)\n\ndef handler_110(request):\n    value_111 = service.compute(111, retries=3, timeout=2.5)\n    value_112 = service.compute(112, retries=3, timeout=2.5)\n    value_113 = service.compute(113, retries=3, timeout=2.5)\n    value_114 = service.compute(114, retries=3, timeout=2.5)\n    value_115 = service.compute(115, retries=3, timeout=2.5)\n    value_116 = service.compute(116, retries=3, timeout=2.5)\n    value_117 = service.compute(117, retries=3, timeout=2.5)\n    value_118 = service.compute(118, retries=3, timeout=2.5)\n    value_119 = service.compute(119, retries=3, timeout=2.5)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug! Please never paste API keys or private prompts.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start TokenSip with `tokensip start --profile balanced`
+        2. Send a request with the OpenAI SDK …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: TokenSip version
+      placeholder: "0.1.0 (tokensip --version)"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run TokenSip?
+      options: [npx / npm, Docker, Embedded in my app, "@tokensip/core in-process", From source]
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider, model and SDK / agent
+      placeholder: "Anthropic, claude-sonnet-4-5, Claude Code 2.x"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or the x-tokensip-* response headers
+      render: shell

@@ -1,0 +1,12 @@
+# Automatic HTTPS in front of TokenSip.
+# Run TokenSip with TOKENSIP_MODE=server and TOKENSIP_TRUST_PROXY=true.
+ai.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8787 {
+		# Long-running streams from agents
+		flush_interval -1
+		transport http {
+			read_timeout 15m
+		}
+	}
+}

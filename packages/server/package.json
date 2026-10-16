@@ -22,7 +22,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-web.mjs",
-    "dev": "tsc -p tsconfig.json && node dist/cli.js start"
+    "dev": "tsc -p tsconfig.json && node dist/cli.js start",
+    "prepack": "node ../../scripts/prepack.mjs --readme"
   },
   "keywords": [
     "llm",

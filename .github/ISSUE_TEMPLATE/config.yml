@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/IMRX44/tokensip/security/advisories/new
+    about: Please report security issues privately, never in a public issue.
+  - name: Questions & ideas
+    url: https://github.com/IMRX44/tokensip/discussions
+    about: Ask questions and share how you use TokenSip.

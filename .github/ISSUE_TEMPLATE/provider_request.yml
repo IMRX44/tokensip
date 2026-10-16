@@ -1,0 +1,24 @@
+name: Provider request
+description: Ask for a new built-in provider preset
+labels: [provider]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Provider name
+    validations:
+      required: true
+  - type: input
+    id: base
+    attributes:
+      label: API base URL and docs link
+    validations:
+      required: true
+  - type: checkboxes
+    id: formats
+    attributes:
+      label: Supported wire formats
+      options:
+        - label: OpenAI-compatible (/chat/completions)
+        - label: Anthropic-compatible (/v1/messages)
+        - label: Gemini-compatible

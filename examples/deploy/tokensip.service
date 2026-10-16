@@ -1,0 +1,28 @@
+# /etc/systemd/system/tokensip.service
+#   sudo useradd --system --home /var/lib/tokensip tokensip
+#   sudo npm install -g tokensip
+#   sudo systemctl enable --now tokensip
+[Unit]
+Description=TokenSip — token-saving AI gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=tokensip
+EnvironmentFile=/etc/tokensip.env
+Environment=TOKENSIP_MODE=server TOKENSIP_HOST=127.0.0.1 TOKENSIP_DATA_DIR=/var/lib/tokensip
+ExecStart=/usr/bin/env tokensip start
+Restart=on-failure
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/tokensip
+StateDirectory=tokensip
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

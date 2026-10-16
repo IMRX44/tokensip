@@ -1,0 +1,53 @@
+# Minimal single-replica deployment (SQLite lives on the PersistentVolume).
+# kubectl create secret generic tokensip --from-literal=TOKENSIP_SECRET=$(openssl rand -hex 32) \
+#   --from-literal=TOKENSIP_ADMIN_PASSWORD='change-me-please'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tokensip
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: tokensip } }
+  template:
+    metadata: { labels: { app: tokensip } }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      containers:
+        - name: tokensip
+          image: ghcr.io/imrx44/tokensip:latest
+          ports: [{ containerPort: 8787 }]
+          envFrom: [{ secretRef: { name: tokensip } }]
+          env:
+            - { name: TOKENSIP_TRUST_PROXY, value: "true" }
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          readinessProbe: { httpGet: { path: /readyz, port: 8787 } }
+          livenessProbe: { httpGet: { path: /healthz, port: 8787 } }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: tokensip-data }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: tokensip-data }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: tokensip }
+spec:
+  selector: { app: tokensip }
+  ports: [{ port: 80, targetPort: 8787 }]

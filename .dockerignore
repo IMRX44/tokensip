@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+packages/server/web
+.git
+.github
+coverage
+data
+*.log
+.env
+.env.*
+docs
+assets
+examples

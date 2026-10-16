@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - name: Smoke-test the CLI
+        run: |
+          node packages/server/dist/cli.js --version
+          node packages/server/dist/cli.js optimize examples/requests/agent-openai.json --profile balanced
+          node packages/server/dist/cli.js optimize examples/requests/agent-anthropic.json --profile safe
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: tokensip:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Boot the container
+        run: |
+          docker run -d --name tokensip -p 8787:8787 -e TOKENSIP_SECRET=$(openssl rand -hex 32) --read-only --tmpfs /tmp tokensip:ci
+          for i in $(seq 1 30); do curl -fsS localhost:8787/healthz && exit 0; sleep 1; done
+          docker logs tokensip; exit 1

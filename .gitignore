@@ -11,3 +11,6 @@ coverage/
 packages/server/web/
 *.tsbuildinfo
 .vite/
+packages/core/LICENSE
+packages/server/LICENSE
+packages/server/README.md

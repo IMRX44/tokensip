@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an idea or a new optimization
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+  - type: dropdown
+    id: safety
+    attributes:
+      label: If this is an optimization, how much may it change what the model sees?
+      options: ["lossless — byte-level only", "equivalent — same information, different form", "lossy — drops information", "not an optimization"]

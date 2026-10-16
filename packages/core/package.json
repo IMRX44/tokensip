@@ -19,7 +19,8 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "node ../../scripts/prepack.mjs"
   },
   "keywords": [
     "llm",

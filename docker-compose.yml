@@ -1,0 +1,25 @@
+# Production-style deployment:
+#   1. cp .env.example .env   and set TOKENSIP_SECRET + TOKENSIP_ADMIN_PASSWORD
+#   2. docker compose up -d
+#   3. open http://localhost:8787
+services:
+  tokensip:
+    image: ghcr.io/imrx44/tokensip:latest
+    build: .
+    container_name: tokensip
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787" # put a TLS reverse proxy in front for remote access
+    env_file: .env
+    volumes:
+      - tokensip-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  tokensip-data:
