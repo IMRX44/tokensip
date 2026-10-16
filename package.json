@@ -1,0 +1,32 @@
+{
+  "name": "tokensip-monorepo",
+  "private": true,
+  "type": "module",
+  "description": "TokenSip — the token-saving AI gateway. Cut LLM costs without changing model behavior.",
+  "workspaces": [
+    "packages/core",
+    "packages/web",
+    "packages/server"
+  ],
+  "scripts": {
+    "build": "npm run build -w @tokensip/core && npm run build -w @tokensip/web && npm run build -w tokensip",
+    "dev": "npm run build -w @tokensip/core && npm run dev -w tokensip",
+    "dev:web": "npm run dev -w @tokensip/web",
+    "start": "node packages/server/dist/cli.js start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p packages/core && tsc -p packages/server --noEmit && tsc -p packages/web --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write ."
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

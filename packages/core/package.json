@@ -1,0 +1,52 @@
+{
+  "name": "@tokensip/core",
+  "version": "0.1.0",
+  "description": "Token-optimization engine behind TokenSip: prefix-stable, lossless-first prompt optimizers, provider catalog, pricing and usage accounting for OpenAI, Anthropic, Gemini and every OpenAI-compatible API.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "llm",
+    "tokens",
+    "token-optimization",
+    "prompt-caching",
+    "openai",
+    "anthropic",
+    "gemini",
+    "ai-gateway",
+    "llm-proxy",
+    "cost-optimization",
+    "agents"
+  ],
+  "author": "IMRX44",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IMRX44/tokensip.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/IMRX44/tokensip#readme",
+  "bugs": "https://github.com/IMRX44/tokensip/issues",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "gpt-tokenizer": "^3.4.0"
+  }
+}
