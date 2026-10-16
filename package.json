@@ -17,15 +17,18 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p packages/core && tsc -p packages/server --noEmit && tsc -p packages/web --noEmit",
     "lint": "biome check .",
-    "format": "biome check --write ."
+    "format": "biome check --write .",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "engines": {
     "node": ">=22.13.0"
   },
   "license": "MIT",
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@biomejs/biome": "^2.5.15",
     "@types/node": "^22.20.5",
+    "openai": "^7.34.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   }
