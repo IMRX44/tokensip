@@ -105,6 +105,7 @@ export async function adminRoutes(fastify: FastifyInstance, { app }: { app: Toke
       local: Boolean(p.local),
       requiresBaseUrl: Boolean(p.requiresBaseUrl),
       autoPrefixCache: Boolean(p.autoPrefixCache),
+      streamUsageDefault: Boolean(p.streamUsage),
       docsUrl: p.docsUrl,
       keyUrl: p.keyUrl,
     })),
@@ -179,6 +180,10 @@ export async function adminRoutes(fastify: FastifyInstance, { app }: { app: Toke
         baselineCost: num(r.baseline_cost),
       })),
       cache: app.cache.stats(),
+      unpricedModels: app.requests
+        .models(o.since, 50)
+        .filter((m) => app.prices.resolve(m.model).source === "none")
+        .map((m) => m.model),
     };
   });
 
@@ -237,6 +242,7 @@ export async function adminRoutes(fastify: FastifyInstance, { app }: { app: Toke
         baseUrl: httpUrl.optional().nullable(),
         anthropicBaseUrl: httpUrl.optional().nullable(),
         priority: z.number().int().min(0).max(10_000).optional(),
+        streamUsage: z.boolean().nullable().optional(),
       })
       .safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: "invalid_input", issues: body.error.issues });
@@ -258,6 +264,7 @@ export async function adminRoutes(fastify: FastifyInstance, { app }: { app: Toke
         anthropicBaseUrl: httpUrl.nullable(),
         enabled: z.boolean(),
         priority: z.number().int().min(0).max(10_000),
+        streamUsage: z.boolean().nullable(),
       })
       .partial()
       .safeParse(req.body);
@@ -355,14 +362,19 @@ export async function adminRoutes(fastify: FastifyInstance, { app }: { app: Toke
   });
 
   fastify.get("/pricing", async () => ({
-    prices: Object.fromEntries(app.prices.entries()),
+    // Models actually used in the last 90 days, with the price TokenSip applies and where it came from.
+    models: app.requests.models(Date.now() - 90 * 864e5).map((m) => {
+      const r = app.prices.resolve(m.model);
+      return { ...m, source: r.source, price: r.price ?? null, matched: r.matched ?? null };
+    }),
     overrides: app.settings.priceOverrides,
+    prices: Object.fromEntries(app.prices.entries()),
   }));
 
   fastify.put("/pricing/:model", async (req, reply) => {
     const { model } = req.params as { model: string };
     const body = priceSchema.safeParse(req.body);
-    if (!body.success || model.length > 128) return reply.code(400).send({ error: "invalid_input" });
+    if (!body.success || !model || model.length > 128) return reply.code(400).send({ error: "invalid_input" });
     app.updateSettings({ priceOverrides: { ...app.settings.priceOverrides, [model.toLowerCase()]: body.data } });
     app.audit.add("pricing.updated", { model }, ip(req));
     return { ok: true };

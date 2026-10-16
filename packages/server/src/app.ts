@@ -35,6 +35,8 @@ export interface ResolvedProvider {
   auth: AuthStyle;
   apiKey: string | null;
   source: "db" | "env" | "passthrough";
+  /** Request `stream_options.include_usage` on OpenAI-compatible streams. */
+  streamUsage: boolean;
 }
 
 interface ConfiguredProvider {
@@ -156,11 +158,17 @@ export class TokenSipApp {
     surface: Surface,
     record?: Pick<ProviderRecord, "baseUrl" | "anthropicBaseUrl">,
   ): { baseUrl: string; auth: AuthStyle } | undefined {
+    // Any provider (including custom gateways and aggregators) can expose an
+    // Anthropic-compatible endpoint by configuring its base URL.
+    if (surface === "anthropic" && record?.anthropicBaseUrl) {
+      return {
+        baseUrl: record.anthropicBaseUrl.replace(/\/+$/, ""),
+        auth: preset.surfaces.anthropic?.auth ?? "x-api-key",
+      };
+    }
     const s = preset.surfaces[surface];
     if (!s) return undefined;
-    let baseUrl = s.baseUrl;
-    if (surface === "openai" && record?.baseUrl) baseUrl = record.baseUrl;
-    if (surface === "anthropic" && record?.anthropicBaseUrl) baseUrl = record.anthropicBaseUrl;
+    const baseUrl = surface === "openai" && record?.baseUrl ? record.baseUrl : s.baseUrl;
     if (!baseUrl) return undefined;
     return { baseUrl: baseUrl.replace(/\/+$/, ""), auth: s.auth };
   }
@@ -204,6 +212,7 @@ export class TokenSipApp {
         auth: s.auth,
         apiKey: opts.passthrough ? null : chosen.apiKey(),
         source: opts.passthrough ? "passthrough" : chosen.record.source,
+        streamUsage: chosen.record.streamUsage ?? Boolean(chosen.preset.streamUsage),
       };
     }
 
@@ -238,6 +247,7 @@ export class TokenSipApp {
       auth: s.auth,
       apiKey: null,
       source: "passthrough",
+      streamUsage: Boolean(preset.streamUsage),
     };
   }
 
@@ -267,6 +277,30 @@ export class TokenSipApp {
   }
 }
 
+function envRecord(
+  id: string,
+  presetId: string,
+  name: string,
+  key: string | null,
+  extra: Partial<ProviderRecord> = {},
+): ProviderRecord {
+  return {
+    id,
+    preset: presetId,
+    name,
+    baseUrl: null,
+    anthropicBaseUrl: null,
+    keyHint: key ? keyHint(key) : null,
+    enabled: true,
+    priority: 1000,
+    streamUsage: null,
+    createdAt: 0,
+    lastUsedAt: null,
+    source: "env",
+    ...extra,
+  };
+}
+
 function loadEnvProviders(env: NodeJS.ProcessEnv): ConfiguredProvider[] {
   const out: ConfiguredProvider[] = [];
   for (const [presetId, vars] of Object.entries(ENV_PROVIDER_KEYS)) {
@@ -277,19 +311,27 @@ function loadEnvProviders(env: NodeJS.ProcessEnv): ConfiguredProvider[] {
     out.push({
       preset,
       apiKey: () => key,
-      record: {
-        id: `env:${presetId}`,
-        preset: presetId,
-        name: `${preset.name} (${name})`,
-        baseUrl: null,
-        anthropicBaseUrl: null,
-        keyHint: keyHint(key),
-        enabled: true,
-        priority: 1000,
-        createdAt: 0,
-        lastUsedAt: null,
-        source: "env",
-      },
+      record: envRecord(`env:${presetId}`, presetId, `${preset.name} (${name})`, key),
+    });
+  }
+
+  // Any OpenAI-compatible gateway or aggregator, optionally with an Anthropic-compatible endpoint.
+  const customBase = env.TOKENSIP_CUSTOM_BASE_URL;
+  const custom = PROVIDER_BY_ID.get("custom");
+  if (customBase && custom) {
+    const key = env.TOKENSIP_CUSTOM_API_KEY || null;
+    const streamUsage = env.TOKENSIP_CUSTOM_STREAM_USAGE;
+    out.push({
+      preset: custom,
+      apiKey: () => key,
+      record: envRecord("env:custom", "custom", env.TOKENSIP_CUSTOM_NAME || "Custom (TOKENSIP_CUSTOM_BASE_URL)", key, {
+        baseUrl: customBase,
+        anthropicBaseUrl: env.TOKENSIP_CUSTOM_ANTHROPIC_BASE_URL || null,
+        streamUsage:
+          streamUsage === undefined || streamUsage === ""
+            ? null
+            : ["1", "true", "yes", "on"].includes(streamUsage.toLowerCase()),
+      }),
     });
   }
   return out;

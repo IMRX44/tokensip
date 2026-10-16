@@ -97,6 +97,8 @@ const MIGRATIONS: string[] = [
     ip TEXT
   );
   `,
+  // v2: per-provider override for requesting usage on OpenAI-compatible streams (NULL = preset default)
+  "ALTER TABLE providers ADD COLUMN stream_usage INTEGER;",
 ];
 
 /** Silence Node's ExperimentalWarning for node:sqlite only. */

@@ -66,6 +66,8 @@ export interface ProviderRecord {
   keyHint: string | null;
   enabled: boolean;
   priority: number;
+  /** Ask for `stream_options.include_usage` on OpenAI-compatible streams. `null` = provider default. */
+  streamUsage: boolean | null;
   createdAt: number;
   lastUsedAt: number | null;
   /** "db" for keys stored in the vault, "env" for keys read from environment variables. */
@@ -82,6 +84,7 @@ function toProvider(r: Row): ProviderRecord {
     keyHint: (r.key_hint as string) ?? null,
     enabled: r.enabled === 1,
     priority: r.priority as number,
+    streamUsage: r.stream_usage === null || r.stream_usage === undefined ? null : r.stream_usage === 1,
     createdAt: r.created_at as number,
     lastUsedAt: (r.last_used_at as number) ?? null,
     source: "db",
@@ -122,12 +125,13 @@ export class ProviderStore {
     anthropicBaseUrl?: string | null;
     priority?: number;
     enabled?: boolean;
+    streamUsage?: boolean | null;
   }): ProviderRecord {
     const id = randomUUID();
     this.db
       .prepare(
-        `INSERT INTO providers(id, preset, name, base_url, anthropic_base_url, api_key_enc, key_hint, enabled, priority, created_at)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO providers(id, preset, name, base_url, anthropic_base_url, api_key_enc, key_hint, enabled, priority, stream_usage, created_at)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -139,6 +143,7 @@ export class ProviderStore {
         input.apiKey ? keyHint(input.apiKey) : null,
         input.enabled === false ? 0 : 1,
         input.priority ?? 100,
+        input.streamUsage === undefined || input.streamUsage === null ? null : input.streamUsage ? 1 : 0,
         Date.now(),
       );
     return this.get(id) as ProviderRecord;
@@ -153,6 +158,7 @@ export class ProviderStore {
       anthropicBaseUrl: string | null;
       enabled: boolean;
       priority: number;
+      streamUsage: boolean | null;
     }>,
   ): ProviderRecord | undefined {
     const cur = this.get(id);
@@ -168,6 +174,8 @@ export class ProviderStore {
     if (patch.anthropicBaseUrl !== undefined) add("anthropic_base_url", patch.anthropicBaseUrl || null);
     if (patch.enabled !== undefined) add("enabled", patch.enabled ? 1 : 0);
     if (patch.priority !== undefined) add("priority", patch.priority);
+    if (patch.streamUsage !== undefined)
+      add("stream_usage", patch.streamUsage === null ? null : patch.streamUsage ? 1 : 0);
     if (patch.apiKey !== undefined) {
       add("api_key_enc", patch.apiKey ? this.vault.encryptString(patch.apiKey) : null);
       add("key_hint", patch.apiKey ? keyHint(patch.apiKey) : null);
@@ -454,6 +462,18 @@ export class RequestLog {
       .all(since) as Row[];
 
     return { range, since, bucketMs, totals, series, byModel, byProvider };
+  }
+
+  /** Models seen recently, most used first. */
+  models(sinceMs: number, limit = 200): { model: string; requests: number; lastSeen: number }[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT model, COUNT(*) AS requests, MAX(ts) AS last_seen FROM requests
+           WHERE model IS NOT NULL AND model != '' AND ts >= ? GROUP BY model ORDER BY requests DESC LIMIT ?`,
+        )
+        .all(sinceMs, limit) as Row[]
+    ).map((r) => ({ model: r.model as string, requests: r.requests as number, lastSeen: r.last_seen as number }));
   }
 
   prune(retentionDays: number): number {

@@ -19,6 +19,16 @@ let vkey: string;
 function mockUpstream(req: IncomingMessage, body: string, res: import("node:http").ServerResponse) {
   const json = body ? JSON.parse(body) : {};
   if (req.url?.endsWith("/chat/completions")) {
+    if (json.model === "lingering-stream") {
+      // Sends the whole answer and [DONE], then keeps the connection open for a while.
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.write(
+        `data: ${JSON.stringify({ id: "1", choices: [{ index: 0, delta: { content: "done" }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 1 } })}\n\n`,
+      );
+      res.write("data: [DONE]\n\n");
+      setTimeout(() => res.end(), 1500);
+      return;
+    }
     if (json.stream) {
       res.writeHead(200, { "content-type": "text/event-stream" });
       res.write(`data: ${JSON.stringify({ id: "1", choices: [{ index: 0, delta: { content: "Hel" } }] })}\n\n`);
@@ -54,6 +64,13 @@ function mockUpstream(req: IncomingMessage, body: string, res: import("node:http
     );
     return;
   }
+  if (req.url?.endsWith("/embeddings")) {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(
+      JSON.stringify({ data: [{ embedding: [0.1, 0.2], index: 0 }], usage: { prompt_tokens: 3, total_tokens: 3 } }),
+    );
+    return;
+  }
   res.writeHead(404, { "content-type": "application/json" });
   res.end(JSON.stringify({ error: { message: "not found" } }));
 }
@@ -61,11 +78,17 @@ function mockUpstream(req: IncomingMessage, body: string, res: import("node:http
 beforeAll(async () => {
   upstream = createServer((req, res) => {
     let body = "";
+    req.setEncoding("latin1");
     req.on("data", (c) => {
       body += c;
     });
     req.on("end", () => {
       seen.push({ path: req.url ?? "", headers: req.headers, body });
+      if (req.headers["content-encoding"]) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, encoding: req.headers["content-encoding"] }));
+        return;
+      }
       mockUpstream(req, body, res);
     });
   });
@@ -295,6 +318,118 @@ describe("proxy", () => {
     );
     await r.text();
     expect(last().headers.authorization).toBe("Bearer sk-client-own");
+  });
+});
+
+describe("edge cases", () => {
+  it("forwards compressed request bodies with their content-encoding", async () => {
+    const { gzipSync } = await import("node:zlib");
+    const gz = gzipSync(JSON.stringify({ model: "gpt-4.1", messages: [{ role: "user", content: "x" }] }));
+    const r = await fetch(`${base}/v1/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${vkey}`, "content-type": "application/json", "content-encoding": "gzip" },
+      body: gz,
+    });
+    expect((await r.json()).encoding).toBe("gzip");
+    expect(Buffer.from(last().body, "latin1").equals(gz)).toBe(true);
+  });
+
+  it("caches embeddings", async () => {
+    const body = { model: "text-embedding-3-small", input: `embed-${Date.now()}` };
+    const a = await chat(body, {}, "/v1/embeddings");
+    await a.text();
+    const b = await chat(body, {}, "/v1/embeddings");
+    expect(b.headers.get("x-tokensip-cache")).toBe("HIT");
+  });
+
+  it("routes the Anthropic format to a custom provider with an Anthropic base URL", async () => {
+    const rec = ts.app.providers.create({
+      preset: "custom",
+      name: "Aggregator",
+      apiKey: "agg-secret",
+      baseUrl: `${upstreamUrl}/v1`,
+      anthropicBaseUrl: upstreamUrl,
+    });
+    const r = await chat(
+      { model: "claude-x", max_tokens: 10, stream: true, messages: [{ role: "user", content: "hi" }] },
+      { authorization: "", "x-api-key": vkey, "anthropic-version": "2023-06-01" },
+      `/p/${rec.id}/v1/messages`,
+    );
+    expect(r.status).toBe(200);
+    await r.text();
+    expect(last().path).toBe("/v1/messages");
+    expect(last().headers["x-api-key"]).toBe("agg-secret");
+    ts.app.providers.delete(rec.id);
+  });
+
+  it("only requests stream usage from custom providers that opt in", async () => {
+    const off = ts.app.providers.create({
+      preset: "custom",
+      name: "no-usage",
+      apiKey: "k",
+      baseUrl: `${upstreamUrl}/v1`,
+    });
+    const body = { model: "m", stream: true, messages: [{ role: "user", content: "x" }] };
+    await (await chat(body, {}, `/p/${off.id}/v1/chat/completions`)).text();
+    expect(JSON.parse(last().body).stream_options).toBeUndefined();
+    ts.app.providers.update(off.id, { streamUsage: true });
+    await (await chat(body, {}, `/p/${off.id}/v1/chat/completions`)).text();
+    expect(JSON.parse(last().body).stream_options).toEqual({ include_usage: true });
+    ts.app.providers.delete(off.id);
+  });
+});
+
+describe("stream completion", () => {
+  it("finishes at [DONE] even if the provider keeps the connection open, and caches the result", async () => {
+    const body = {
+      model: "lingering-stream",
+      temperature: 0,
+      stream: true,
+      messages: [{ role: "user", content: `x-${Date.now()}` }],
+    };
+    const started = Date.now();
+    const a = await chat(body);
+    const text = await a.text();
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(text).toContain("[DONE]");
+    const row = ts.app.requests.list({ limit: 1 })[0] as Record<string, unknown>;
+    expect(row.status).toBe(200);
+    expect(row.error).toBeNull();
+    const b = await chat(body);
+    expect(b.headers.get("x-tokensip-cache")).toBe("HIT");
+    expect(await b.text()).toBe(text);
+  });
+});
+
+describe("environment-configured custom provider", () => {
+  it("is routable without touching the dashboard", async () => {
+    const s = await createTokenSipServer({
+      config: { dataDir: ":memory:", port: 0, logLevel: "silent", dashboard: false },
+      env: {
+        TOKENSIP_CUSTOM_BASE_URL: `${upstreamUrl}/v1`,
+        TOKENSIP_CUSTOM_ANTHROPIC_BASE_URL: upstreamUrl,
+        TOKENSIP_CUSTOM_API_KEY: "env-secret",
+        TOKENSIP_CUSTOM_STREAM_USAGE: "true",
+      },
+    });
+    const url = await s.listen();
+    const key = s.app.keys.create({ name: "env" }).key;
+    const r = await fetch(`${url}/custom/v1/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ model: "anything", stream: true, messages: [{ role: "user", content: "x" }] }),
+    });
+    await r.text();
+    expect(last().headers.authorization).toBe("Bearer env-secret");
+    expect(JSON.parse(last().body).stream_options).toEqual({ include_usage: true });
+    const a = await fetch(`${url}/custom/v1/messages`, {
+      method: "POST",
+      headers: { "x-api-key": key, "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-x", max_tokens: 5, messages: [{ role: "user", content: "x" }] }),
+    });
+    await a.text();
+    expect(last().headers["x-api-key"]).toBe("env-secret");
+    await s.close();
   });
 });
 

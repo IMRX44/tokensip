@@ -136,12 +136,20 @@ function enforceLimits(app: TokenSipApp, key: ApiKeyRecord | undefined): void {
   }
 }
 
-function upstreamHeaders(req: FastifyRequest, provider: ResolvedProvider, passthrough: boolean): Headers {
+function upstreamHeaders(
+  req: FastifyRequest,
+  provider: ResolvedProvider,
+  passthrough: boolean,
+  bodyRewritten: boolean,
+): Headers {
   const h = new Headers();
   for (const name of FORWARD_HEADERS) {
     const v = header(req, name);
     if (v) h.set(name, v);
   }
+  // A compressed body is forwarded as-is (TokenSip only rewrites bodies it could parse).
+  const encoding = header(req, "content-encoding");
+  if (encoding && !bodyRewritten) h.set("content-encoding", encoding);
   if (passthrough) {
     // Forward the client's own credential untouched (API keys and OAuth tokens alike).
     for (const name of PASSTHROUGH_AUTH_HEADERS) {
@@ -219,7 +227,7 @@ function cacheEligible(
   if (!settings.enabled && mode !== "force") return false;
   if (req.method !== "POST" || !body || typeof body !== "object") return false;
   const b = body as Record<string, unknown>;
-  const isEmbedding = /\/embeddings$|:(batch)?embedContents?$/.test(path);
+  const isEmbedding = /\/embeddings$|:(batch)?embedContents?$/i.test(path);
   if (!protocol && !isEmbedding) return false;
   // Stateful / async OpenAI Responses requests must always reach the provider.
   if (b.previous_response_id || b.background === true || b.conversation) return false;
@@ -386,7 +394,7 @@ export async function proxyRequest(
   if (
     protocol === "openai-chat" &&
     payload?.stream === true &&
-    provider.preset.streamUsage &&
+    provider.streamUsage &&
     app.settings.streamUsage &&
     !(payload.stream_options as Record<string, unknown> | undefined)?.include_usage
   ) {
@@ -452,7 +460,7 @@ export async function proxyRequest(
   try {
     upstream = await fetch(buildUpstreamUrl(provider, path, url, auth.passthrough), {
       method,
-      headers: upstreamHeaders(req, provider, auth.passthrough),
+      headers: upstreamHeaders(req, provider, auth.passthrough, bodyChanged),
       body: upstreamBody,
       signal: AbortSignal.any([abort.signal, timeout]),
       redirect: "manual",
@@ -492,16 +500,36 @@ export async function proxyRequest(
   const decoder = new TextDecoder();
   const chunks: Buffer[] = [];
   let captured = 0;
-  let overflow = false;
+  // SSE usage is parsed incrementally, so a stream is only buffered when it may be cached
+  // (or when it's an error whose message we log). Non-SSE bodies are kept for usage parsing.
+  let overflow = isSse && !cacheKey && upstream.status < 400;
   let aborted = false;
 
+  // Set once the format's end-of-stream event has been forwarded. Some providers keep the
+  // connection open after it and SDKs hang up as soon as they see it — that's a completed
+  // response, not an interrupted one.
+  let complete = false;
+
   const handleEvent = (data: string): boolean => {
-    if (!data || data === "[DONE]") return true;
+    if (!data) return true;
+    if (data === "[DONE]") {
+      complete = true;
+      return true;
+    }
     let json: unknown;
     try {
       json = JSON.parse(data);
     } catch {
       return true;
+    }
+    const type = (json as { type?: unknown }).type;
+    if (
+      type === "message_stop" ||
+      type === "response.completed" ||
+      type === "response.incomplete" ||
+      type === "response.failed"
+    ) {
+      complete = true;
     }
     accumulator.push(json);
     if (stripUsageChunk) {
@@ -535,6 +563,7 @@ export async function proxyRequest(
                 chunks.length = 0;
               } else if (!overflow) chunks.push(Buffer.from(out));
             }
+            if (complete) break;
             continue;
           }
           for (const ev of events) handleEvent(ev.data);
@@ -547,6 +576,8 @@ export async function proxyRequest(
             chunks.length = 0;
           } else chunks.push(buf);
         }
+        // Finish as soon as the stream is semantically done; breaking out also releases the upstream socket.
+        if (complete) break;
       }
       if (isSse) {
         const rest = parser.flush();
@@ -559,7 +590,7 @@ export async function proxyRequest(
       }
     }
   } catch (err) {
-    aborted = true;
+    aborted = !complete;
     req.log.debug({ err }, "stream interrupted");
   } finally {
     res.off("close", onClose);
