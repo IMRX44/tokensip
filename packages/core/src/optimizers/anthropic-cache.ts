@@ -1,4 +1,5 @@
 import { isObj, type Json } from "../protocols/types.js";
+import { totalTokens } from "../session/blocks.js";
 import type { Stage } from "./types.js";
 import { NOOP } from "./types.js";
 
@@ -61,7 +62,11 @@ export const anthropicCacheBreakpoints: Stage = {
     if (hasCacheControl(p.tools) || hasCacheControl(p.system) || hasCacheControl(p.messages)) {
       return { ...NOOP, note: "client already manages cache_control" };
     }
-    const approxTokens = Math.ceil(JSON.stringify([p.tools ?? null, p.system ?? null, p.messages ?? null]).length / 4);
+    // Decide on the client's original size when the conversation is tracked: it only grows, so
+    // breakpoints never flip off after other stages trimmed the prompt below the threshold.
+    const approxTokens = ctx.session
+      ? totalTokens(ctx.session.origBlocks)
+      : Math.ceil(JSON.stringify([p.tools ?? null, p.system ?? null, p.messages ?? null]).length / 4);
     if (approxTokens < ctx.options.minCacheableTokens) {
       return { ...NOOP, note: "prompt below cacheable minimum" };
     }

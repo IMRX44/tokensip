@@ -1,4 +1,5 @@
 import type { ProtocolAdapter, TextSlot } from "../protocols/types.js";
+import type { SessionRuntime } from "../session/runtime.js";
 import type { Protocol, Safety, StageId, StageOptions } from "../types.js";
 
 export interface StageContext {
@@ -13,6 +14,8 @@ export interface StageContext {
   originalSize: number;
   /** Token counter configured for this run. */
   count(text: string): number;
+  /** Conversation-level state, when the request runs through a SessionEngine. */
+  session?: SessionRuntime;
 }
 
 export interface StageResult {

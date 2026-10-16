@@ -52,7 +52,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  profile: "safe",
+  profile: "balanced",
   overrides: {},
   stageOptions: {},
   responseCache: { enabled: true, ttlSeconds: 3600, onlyDeterministic: true, maxEntryKb: 2048 },
@@ -395,6 +395,14 @@ export interface RequestRecord {
   profile: string | null;
   lossy: boolean;
   error: string | null;
+  session?: {
+    id: string;
+    turn: number;
+    predictedCache: number;
+    leak?: { kind: string; location: string; shape: string; tokensAffected: number };
+    /** "applied" | "deferred" | undefined */
+    schedule?: string;
+  };
 }
 
 export type Range = "24h" | "7d" | "30d" | "90d";
@@ -445,8 +453,9 @@ export class RequestLog {
     this.stmt(
       `INSERT INTO requests(id, ts, key_id, tenant, provider, model, protocol, path, stream, status, latency_ms, ttfb_ms,
           overhead_ms, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, estimated,
-          optimizer_saved, cost, baseline_cost, cache_hit, profile, lossy, error)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          optimizer_saved, cost, baseline_cost, cache_hit, profile, lossy, error,
+          session_id, turn, predicted_cache, leak_kind, leak_location, leak_shape, leak_tokens, schedule)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       r.id,
       r.ts,
@@ -474,6 +483,14 @@ export class RequestLog {
       r.profile,
       r.lossy ? 1 : 0,
       r.error ? r.error.slice(0, 500) : null,
+      r.session?.id ?? null,
+      r.session?.turn ?? null,
+      r.session?.predictedCache ?? null,
+      r.session?.leak?.kind ?? null,
+      r.session?.leak?.location ?? null,
+      r.session?.leak?.shape ?? null,
+      r.session?.leak?.tokensAffected ?? null,
+      r.session?.schedule ?? null,
     );
   }
 
@@ -517,6 +534,8 @@ export class RequestLog {
           COALESCE(SUM(CASE WHEN cache_hit = 1 THEN input_tokens + cache_read_tokens + cache_write_tokens + output_tokens ELSE 0 END), 0) AS cache_hit_tokens,
           COALESCE(SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END), 0) AS errors,
           COALESCE(AVG(overhead_ms), 0) AS avg_overhead_ms,
+          COALESCE(SUM(CASE WHEN leak_kind IS NOT NULL THEN 1 ELSE 0 END), 0) AS leaks,
+          COUNT(DISTINCT session_id) AS sessions,
           COALESCE(AVG(CASE WHEN cache_hit = 0 THEN latency_ms END), 0) AS avg_latency_ms
          FROM requests WHERE ts >= ?`,
       )
@@ -553,6 +572,55 @@ export class RequestLog {
       .all(since) as Row[];
 
     return { range, since, bucketMs, totals, series, byModel, byProvider };
+  }
+
+  /** Cache Doctor summary: leaks grouped by kind/location/shape. */
+  leaks(
+    sinceMs: number,
+  ): { kind: string; location: string; shape: string; count: number; tokens: number; lastSeen: number }[] {
+    this.flush();
+    return (
+      this.db
+        .prepare(
+          `SELECT leak_kind AS kind, leak_location AS location, COALESCE(leak_shape, '') AS shape, COUNT(*) AS count,
+             COALESCE(SUM(leak_tokens), 0) AS tokens, MAX(ts) AS last_seen
+           FROM requests WHERE leak_kind IS NOT NULL AND ts >= ?
+           GROUP BY leak_kind, leak_location, leak_shape ORDER BY tokens DESC LIMIT 20`,
+        )
+        .all(sinceMs) as Row[]
+    ).map((r) => ({
+      kind: r.kind as string,
+      location: r.location as string,
+      shape: r.shape as string,
+      count: r.count as number,
+      tokens: r.tokens as number,
+      lastSeen: r.last_seen as number,
+    }));
+  }
+
+  /** Conversations seen recently, newest first. */
+  sessions(sinceMs: number, limit = 100): Row[] {
+    this.flush();
+    return this.db
+      .prepare(
+        `SELECT session_id AS id, MIN(ts) AS first_ts, MAX(ts) AS last_ts, COUNT(*) AS turns,
+           MAX(model) AS model, MAX(provider) AS provider, MAX(key_id) AS key_id,
+           SUM(input_tokens + cache_read_tokens + cache_write_tokens) AS prompt_tokens,
+           SUM(cache_read_tokens) AS cache_read_tokens, SUM(output_tokens) AS output_tokens,
+           SUM(optimizer_saved) AS optimizer_saved, SUM(CASE WHEN leak_kind IS NOT NULL THEN 1 ELSE 0 END) AS leaks,
+           SUM(CASE WHEN schedule = 'applied' THEN 1 ELSE 0 END) AS applied,
+           SUM(CASE WHEN schedule = 'deferred' THEN 1 ELSE 0 END) AS deferred,
+           SUM(cost) AS cost, SUM(baseline_cost) AS baseline_cost
+         FROM requests WHERE session_id IS NOT NULL AND ts >= ?
+         GROUP BY session_id ORDER BY last_ts DESC LIMIT ?`,
+      )
+      .all(sinceMs, limit) as Row[];
+  }
+
+  /** Every turn of one conversation, oldest first. */
+  sessionTurns(id: string): Row[] {
+    this.flush();
+    return this.db.prepare("SELECT * FROM requests WHERE session_id = ? ORDER BY ts ASC LIMIT 2000").all(id) as Row[];
   }
 
   /** Models seen recently, most used first. */

@@ -1,12 +1,18 @@
 import { optimize } from "./pipeline.js";
 import { protocolFromPath } from "./protocols/index.js";
+import { SessionEngine, type SessionReport } from "./session/engine.js";
 import type { OptimizeOptions, OptimizeReport } from "./types.js";
 
 export interface TokenSipFetchOptions extends Omit<OptimizeOptions, "protocol" | "provider" | "model"> {
   /** Underlying fetch implementation. Defaults to the global fetch. */
   fetch?: typeof fetch;
   /** Called after every optimized request. */
-  onReport?: (report: OptimizeReport, info: { url: string; model?: string }) => void;
+  onReport?: (report: OptimizeReport, info: { url: string; model?: string; session?: SessionReport }) => void;
+  /**
+   * Track conversations (cache leak detection, cache-economic removal of outdated tool output).
+   * Default true. Pass an existing engine to share state between several clients.
+   */
+  sessions?: boolean | SessionEngine;
 }
 
 const HOST_PROVIDERS: [RegExp, string][] = [
@@ -30,7 +36,8 @@ function providerFromHost(host: string): string | undefined {
  * ```
  */
 export function createTokenSipFetch(options: TokenSipFetchOptions = {}): typeof fetch {
-  const { fetch: baseFetch = globalThis.fetch, onReport, ...optimizeOptions } = options;
+  const { fetch: baseFetch = globalThis.fetch, onReport, sessions = true, ...optimizeOptions } = options;
+  const engine = sessions instanceof SessionEngine ? sessions : sessions ? new SessionEngine() : undefined;
 
   const wrapped = async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
     const request = input instanceof Request ? input : undefined;
@@ -56,18 +63,15 @@ export function createTokenSipFetch(options: TokenSipFetchOptions = {}): typeof 
         ? (parsed as { model: string }).model
         : decodeURIComponent(url.pathname.match(/models\/([^:/]+)/)?.[1] ?? "") || undefined;
 
-    let result: ReturnType<typeof optimize>;
+    let result: ReturnType<SessionEngine["run"]>;
     try {
-      result = optimize(parsed, {
-        ...optimizeOptions,
-        protocol,
-        model,
-        provider: providerFromHost(url.hostname),
-      });
+      const opts = { ...optimizeOptions, protocol, model, provider: providerFromHost(url.hostname) };
+      // Without session tracking, session-aware stages are skipped (never prune blind: it breaks caches).
+      result = engine ? engine.run(parsed, opts) : optimize(parsed, opts);
     } catch {
       return baseFetch(input, init); // never let optimization break a request
     }
-    onReport?.(result.report, { url: url.href, model });
+    onReport?.(result.report, { url: url.href, model, session: result.session });
     if (!result.report.changed) return baseFetch(input, init);
 
     const body = JSON.stringify(result.payload);

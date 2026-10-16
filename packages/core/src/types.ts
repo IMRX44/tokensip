@@ -16,6 +16,9 @@ export type Safety = "lossless" | "equivalent" | "lossy";
 export type ProfileId = "off" | "safe" | "balanced" | "aggressive" | "extreme";
 
 export type StageId =
+  | "stabilize-tools"
+  | "relocate-volatile"
+  | "supersede-observations"
   | "normalize-whitespace"
   | "anthropic-cache-breakpoints"
   | "openai-prompt-cache-key"
@@ -66,6 +69,8 @@ export interface OptimizeOptions {
   provider?: string;
   /** Mixed into derived cache keys so tenants never share a routing key. */
   cacheKeySalt?: string;
+  /** Conversation context, set by SessionEngine. */
+  session?: import("./session/runtime.js").SessionRuntime;
   /**
    * `exact`: BPE-tokenize everything (accurate, slowest).
    * `fast`: estimate the prompt total, tokenize only the text that changed (default for the proxy).

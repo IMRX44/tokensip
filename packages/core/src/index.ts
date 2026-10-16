@@ -35,6 +35,16 @@ export {
   PROVIDERS,
   surfaceForProtocol,
 } from "./providers.js";
+export type { Block } from "./session/blocks.js";
+export { blocksOf, commonPrefix } from "./session/blocks.js";
+export type { SessionEngineOptions, SessionReport } from "./session/engine.js";
+export { SessionEngine } from "./session/engine.js";
+export type { CacheLeak, LeakKind } from "./session/leaks.js";
+export { classify, detectLeak, maskShape, volatileSpan } from "./session/leaks.js";
+export type { Resource } from "./session/resources.js";
+export { resourceOf } from "./session/resources.js";
+export type { SchedulerDecision, SessionRuntime, SessionState } from "./session/runtime.js";
+export { observations, supersededMap } from "./session/supersede.js";
 export type { SseEvent } from "./sse.js";
 export { SseParser } from "./sse.js";
 export { countTokens, countValueTokens } from "./tokenizer.js";

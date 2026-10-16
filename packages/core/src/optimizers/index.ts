@@ -7,11 +7,17 @@ import { minifyJson } from "./minify-json.js";
 import { normalizeWhitespace } from "./normalize-whitespace.js";
 import { openaiPromptCacheKey } from "./openai-cache-key.js";
 import { capOutput, imageDetailLow, reduceReasoning } from "./request-params.js";
+import { relocateVolatile, stabilizeTools } from "./stabilize.js";
+import { supersedeObservations } from "./supersede.js";
 import { truncateStaleToolResults } from "./truncate-stale.js";
 import type { Stage } from "./types.js";
 
 /** All stages in execution order. Lossy stages run last. */
 export const STAGES: readonly Stage[] = [
+  // Cache Doctor repairs and supersession run on the client's original bytes first.
+  stabilizeTools,
+  relocateVolatile,
+  supersedeObservations,
   normalizeWhitespace,
   minifyJson,
   dedupeToolResults,
@@ -30,28 +36,34 @@ export const STAGE_BY_ID = new Map<StageId, Stage>(STAGES.map((s) => [s.id, s]))
 
 export const PROFILES: Record<ProfileId, StageId[]> = {
   off: [],
-  safe: ["normalize-whitespace", "anthropic-cache-breakpoints", "openai-prompt-cache-key"],
+  safe: ["stabilize-tools", "normalize-whitespace", "anthropic-cache-breakpoints", "openai-prompt-cache-key"],
   balanced: [
+    "stabilize-tools",
+    "relocate-volatile",
+    "supersede-observations",
     "normalize-whitespace",
+    "dedupe-tool-results",
     "anthropic-cache-breakpoints",
     "openai-prompt-cache-key",
-    "minify-json",
-    "dedupe-tool-results",
   ],
   aggressive: [
+    "stabilize-tools",
+    "relocate-volatile",
+    "supersede-observations",
     "normalize-whitespace",
-    "anthropic-cache-breakpoints",
-    "openai-prompt-cache-key",
     "minify-json",
     "dedupe-tool-results",
     "truncate-stale-tool-results",
     "history-window",
     "image-detail-low",
-  ],
-  extreme: [
-    "normalize-whitespace",
     "anthropic-cache-breakpoints",
     "openai-prompt-cache-key",
+  ],
+  extreme: [
+    "stabilize-tools",
+    "relocate-volatile",
+    "supersede-observations",
+    "normalize-whitespace",
     "minify-json",
     "dedupe-tool-results",
     "truncate-stale-tool-results",
@@ -60,6 +72,8 @@ export const PROFILES: Record<ProfileId, StageId[]> = {
     "image-detail-low",
     "reduce-reasoning",
     "cap-output",
+    "anthropic-cache-breakpoints",
+    "openai-prompt-cache-key",
   ],
 };
 

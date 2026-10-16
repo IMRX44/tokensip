@@ -152,7 +152,14 @@ export async function adminRoutes(fastify: FastifyInstance, { app }: { app: Toke
         savingsRate: baseline > 0 ? (baseline - cost) / baseline : 0,
         avgOverheadMs: num(t.avg_overhead_ms),
         avgLatencyMs: num(t.avg_latency_ms),
+        leaks: num(t.leaks),
+        sessions: num(t.sessions),
+        cacheReadShare: (() => {
+          const prompt = num(t.input_tokens) + num(t.cache_read_tokens) + num(t.cache_write_tokens);
+          return prompt > 0 ? num(t.cache_read_tokens) / prompt : 0;
+        })(),
       },
+      cacheDoctor: app.requests.leaks(o.since),
       series: o.series.map((r) => ({
         t: num(r.bucket),
         requests: num(r.requests),
@@ -226,6 +233,66 @@ export async function adminRoutes(fastify: FastifyInstance, { app }: { app: Toke
         error: r.error,
       })),
       nextBefore: rows.length === limit ? rows[rows.length - 1]?.ts : null,
+    };
+  });
+
+  // ------------------------------------------------------------ conversations
+
+  fastify.get("/sessions", async (req) => {
+    const q = req.query as { range?: string };
+    const range = (["24h", "7d", "30d", "90d"].includes(q.range ?? "") ? q.range : "7d") as Range;
+    const since = Date.now() - { "24h": 864e5, "7d": 7 * 864e5, "30d": 30 * 864e5, "90d": 90 * 864e5 }[range];
+    const keyNames = new Map(app.keys.list().map((k) => [k.id, k.name]));
+    return app.requests.sessions(since).map((r) => {
+      const prompt = num(r.prompt_tokens);
+      return {
+        id: r.id,
+        firstTs: num(r.first_ts),
+        lastTs: num(r.last_ts),
+        turns: num(r.turns),
+        model: r.model,
+        provider: r.provider,
+        key: r.key_id ? (keyNames.get(r.key_id as string) ?? "deleted key") : "passthrough",
+        promptTokens: prompt,
+        cacheReadTokens: num(r.cache_read_tokens),
+        outputTokens: num(r.output_tokens),
+        cacheReadShare: prompt > 0 ? num(r.cache_read_tokens) / prompt : 0,
+        optimizerSaved: num(r.optimizer_saved),
+        leaks: num(r.leaks),
+        applied: num(r.applied),
+        deferred: num(r.deferred),
+        cost: num(r.cost),
+        baselineCost: num(r.baseline_cost),
+      };
+    });
+  });
+
+  fastify.get("/sessions/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const rows = app.requests.sessionTurns(id);
+    if (rows.length === 0) return reply.code(404).send({ error: "not_found" });
+    return {
+      id,
+      turns: rows.map((r) => ({
+        ts: r.ts,
+        turn: r.turn,
+        model: r.model,
+        status: r.status,
+        inputTokens: r.input_tokens,
+        cacheReadTokens: r.cache_read_tokens,
+        cacheWriteTokens: r.cache_write_tokens,
+        outputTokens: r.output_tokens,
+        predictedCache: r.predicted_cache,
+        optimizerSaved: r.optimizer_saved,
+        leak: r.leak_kind
+          ? { kind: r.leak_kind, location: r.leak_location, shape: r.leak_shape, tokens: r.leak_tokens }
+          : null,
+        schedule: r.schedule,
+        cost: r.cost,
+        baselineCost: r.baseline_cost,
+        cacheHit: r.cache_hit === 1,
+        latencyMs: r.latency_ms,
+      })),
     };
   });
 

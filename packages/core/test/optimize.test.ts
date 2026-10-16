@@ -42,17 +42,20 @@ describe("optimize()", () => {
     expect(JSON.stringify(b.slice(0, a.length))).toBe(JSON.stringify(a));
   });
 
-  it("balanced profile minifies JSON and dedupes repeated tool output", () => {
+  it("aggressive minifies JSON tool output; balanced keeps it exact but dedupes repeats", () => {
     const res = optimize(openaiAgentConversation(), {
       protocol: "openai-chat",
-      profile: "balanced",
+      profile: "aggressive",
     });
     const out = res.payload.messages;
     expect(out[5]?.content).toBe(minifyJsonText(BIG_JSON));
     expect(out[3]?.content).toBe(LONG_FILE);
     expect(out[7]?.content).toMatch(/identical to an earlier tool result \(c1\)/);
     expect(res.report.tokensSaved).toBeGreaterThan(1000);
-    expect(res.report.lossy).toBe(false);
+    const balanced = optimize(openaiAgentConversation(), { protocol: "openai-chat", profile: "balanced" });
+    expect(balanced.payload.messages[5]?.content).toBe(BIG_JSON);
+    expect(balanced.payload.messages[7]?.content).toMatch(/identical to an earlier tool result/);
+    expect(balanced.report.lossy).toBe(false);
   });
 
   it("extreme profile hits the target ratio and is flagged lossy", () => {

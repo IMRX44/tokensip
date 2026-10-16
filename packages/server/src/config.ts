@@ -37,7 +37,7 @@ const PROFILES = new Set(["off", "safe", "balanced", "aggressive", "extreme"]);
 
 export function loadConfig(overrides: Partial<TokenSipConfig> = {}, env = process.env): TokenSipConfig {
   const mode: Mode = (overrides.mode ?? env.TOKENSIP_MODE) === "server" ? "server" : "local";
-  const profileEnv = env.TOKENSIP_PROFILE ?? "safe";
+  const profileEnv = env.TOKENSIP_PROFILE ?? "balanced";
   const config: TokenSipConfig = {
     mode,
     host: env.TOKENSIP_HOST ?? (mode === "server" ? "0.0.0.0" : "127.0.0.1"),
@@ -54,7 +54,7 @@ export function loadConfig(overrides: Partial<TokenSipConfig> = {}, env = proces
     bodyLimitBytes: Number(env.TOKENSIP_BODY_LIMIT_MB ?? 50) * 1024 * 1024,
     upstreamTimeoutMs: Number(env.TOKENSIP_UPSTREAM_TIMEOUT_MS ?? 600_000),
     metricsToken: env.TOKENSIP_METRICS_TOKEN || undefined,
-    defaultProfile: (PROFILES.has(profileEnv) ? profileEnv : "safe") as ProfileId,
+    defaultProfile: (PROFILES.has(profileEnv) ? profileEnv : "balanced") as ProfileId,
     dashboard: bool(env.TOKENSIP_DASHBOARD, true),
     logLevel: (env.TOKENSIP_LOG_LEVEL as TokenSipConfig["logLevel"]) ?? "info",
     ...overrides,

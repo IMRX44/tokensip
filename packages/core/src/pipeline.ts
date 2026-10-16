@@ -80,6 +80,7 @@ export function optimize<T>(payload: T, opts: OptimizeOptions): OptimizeResult<T
     model: opts.model ?? (typeof work.model === "string" ? work.model : undefined),
     provider: opts.provider,
     cacheKeySalt: opts.cacheKeySalt,
+    session: opts.session,
     options: { ...DEFAULT_STAGE_OPTIONS, ...opts.options },
     originalSize: totalApprox(),
     count,

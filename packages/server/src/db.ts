@@ -99,6 +99,18 @@ const MIGRATIONS: string[] = [
   `,
   // v2: per-provider override for requesting usage on OpenAI-compatible streams (NULL = preset default)
   "ALTER TABLE providers ADD COLUMN stream_usage INTEGER;",
+  // v3: conversation tracking and Cache Doctor findings (shape only — never prompt text)
+  `
+  ALTER TABLE requests ADD COLUMN session_id TEXT;
+  ALTER TABLE requests ADD COLUMN turn INTEGER;
+  ALTER TABLE requests ADD COLUMN predicted_cache INTEGER;
+  ALTER TABLE requests ADD COLUMN leak_kind TEXT;
+  ALTER TABLE requests ADD COLUMN leak_location TEXT;
+  ALTER TABLE requests ADD COLUMN leak_shape TEXT;
+  ALTER TABLE requests ADD COLUMN leak_tokens INTEGER;
+  ALTER TABLE requests ADD COLUMN schedule TEXT;
+  CREATE INDEX IF NOT EXISTS idx_requests_session ON requests(session_id, ts);
+  `,
 ];
 
 /** Silence Node's ExperimentalWarning for node:sqlite only. */

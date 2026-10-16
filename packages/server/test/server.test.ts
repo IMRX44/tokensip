@@ -401,6 +401,46 @@ describe("stream completion", () => {
   });
 });
 
+describe("conversation tracking & cache doctor", () => {
+  it("links turns into one session and flags a clock in the system prompt", async () => {
+    const turn = (n: number, time: string) => ({
+      model: "claude-sonnet-4-5",
+      max_tokens: 50,
+      stream: true,
+      system: `Rules.\n${"Policy text. ".repeat(400)}\nCurrent time: ${time}\nEnd.`,
+      messages: [
+        { role: "user", content: "session-tracking task" },
+        ...Array.from({ length: n - 1 }, (_, i) => [
+          { role: "assistant", content: `step ${i}` },
+          { role: "user", content: `more ${i}` },
+        ]).flat(),
+      ],
+    });
+    const send = async (body: unknown) => {
+      const r = await chat(
+        body,
+        { authorization: "", "x-api-key": vkey, "anthropic-version": "2023-06-01" },
+        "/anthropic/v1/messages",
+      );
+      await r.text();
+      return r;
+    };
+    const a = await send(turn(1, "2026-10-16T10:00:00Z"));
+    const b = await send(turn(2, "2026-10-16T10:01:30Z"));
+    expect(a.headers.get("x-tokensip-session")).toBeTruthy();
+    expect(b.headers.get("x-tokensip-session")).toBe(a.headers.get("x-tokensip-session"));
+    expect(b.headers.get("x-tokensip-cache-leak")).toMatch(/^timestamp at system\[0\]@/);
+    const c = await send(turn(3, "2026-10-16T10:02:45Z"));
+    expect(c.headers.get("x-tokensip-cache-leak")).toMatch(/^timestamp/);
+    // From the turn after detection, the clock is relocated: the cached system prompt no longer changes.
+    expect(JSON.stringify(JSON.parse(last().body).system)).not.toContain("10:02:45");
+    const rows = ts.app.requests.sessionTurns(a.headers.get("x-tokensip-session") as string);
+    expect(rows.map((r) => r.turn)).toEqual([1, 2, 3]);
+    expect(rows[1]?.leak_shape).toBe("9999-99-99A99:99:99A");
+    expect(JSON.stringify(rows)).not.toContain("10:01:30"); // only the shape is stored
+  });
+});
+
 describe("routing", () => {
   it("sends model names no preset claims to a configured custom gateway", async () => {
     const rec = ts.app.providers.create({

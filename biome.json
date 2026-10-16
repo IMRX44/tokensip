@@ -21,7 +21,7 @@
   "overrides": [
     {
       "includes": ["**/test/**"],
-      "linter": { "rules": { "suspicious": { "noExplicitAny": "off" } } }
+      "linter": { "rules": { "suspicious": { "noExplicitAny": "off", "noAssignInExpressions": "off" } } }
     }
   ],
   "javascript": { "formatter": { "quoteStyle": "double", "trailingCommas": "all" } }

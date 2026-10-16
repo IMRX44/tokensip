@@ -4,6 +4,7 @@ import {
   PROVIDER_BY_ID,
   PriceBook,
   type ProviderPreset,
+  SessionEngine,
   type Surface,
 } from "@tokensip/core";
 import { ENV_PROVIDER_KEYS, type TokenSipConfig } from "./config.js";
@@ -54,6 +55,8 @@ export class TokenSipApp {
   readonly sessions: SessionStore;
   readonly audit: AuditLog;
   readonly metrics = new Metrics();
+  /** Conversation tracking, shadow cache and cache-economic scheduling (in memory). */
+  readonly engine = new SessionEngine({ prices: () => this.prices });
   readonly keyLimiter = new RateLimiter(60_000);
   readonly loginLimiter = new RateLimiter(15 * 60_000);
   prices: PriceBook;

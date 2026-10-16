@@ -3,12 +3,12 @@ import {
   countTokens,
   emptyUsage,
   type OptimizeReport,
-  optimize,
   PROFILE_INFO,
   type ProfileId,
   type Protocol,
   protocolFromPath,
   requestFingerprint,
+  type SessionReport,
   SseParser,
   StreamUsageAccumulator,
   type Surface,
@@ -284,6 +284,7 @@ export async function proxyRequest(
   let auth: ClientAuth | undefined;
   let provider: ResolvedProvider | undefined;
   let report: OptimizeReport | undefined;
+  let sessionReport: SessionReport | undefined;
   let profile: ProfileId = app.settings.profile;
 
   const record = (
@@ -323,6 +324,13 @@ export async function proxyRequest(
       profile,
       lossy: report?.lossy ?? false,
       error: extra.error ?? null,
+      session: sessionReport && {
+        id: sessionReport.id,
+        turn: sessionReport.turn,
+        predictedCache: sessionReport.predictedCachedTokens,
+        leak: sessionReport.leak,
+        schedule: sessionReport.decision ? (sessionReport.decision.applied ? "applied" : "deferred") : undefined,
+      },
     });
     if (auth?.key) app.addSpend(auth.key.id, actual);
     const labels = { provider: provider?.preset.id ?? "unknown", status: String(status) };
@@ -370,9 +378,11 @@ export async function proxyRequest(
   else if (auth.key?.profile) profile = auth.key.profile;
 
   let payload: Record<string, unknown> | undefined = parsed;
-  if (protocol && parsed && profile !== "off") {
+  if (protocol && parsed) {
     try {
-      const res = optimize(parsed, {
+      // The session engine runs for every profile (even `off`): conversation tracking and
+      // Cache Doctor diagnostics never change the request on their own.
+      const res = app.engine.run(parsed, {
         protocol,
         profile,
         overrides: profile === app.settings.profile ? app.settings.overrides : undefined,
@@ -380,9 +390,11 @@ export async function proxyRequest(
         model,
         provider: provider.preset.id,
         cacheKeySalt: auth.tenant,
+        tenant: auth.tenant,
         tokenCounting: "fast",
       });
-      report = res.report;
+      if (profile !== "off") report = res.report;
+      sessionReport = res.session;
       payload = res.payload;
     } catch (err) {
       req.log.warn({ err }, "optimizer failed; forwarding the original request");
@@ -416,6 +428,9 @@ export async function proxyRequest(
     "x-tokensip-provider": provider.preset.id,
   };
   if (report) tsHeaders["x-tokensip-tokens-saved"] = String(report.tokensSaved);
+  if (sessionReport) tsHeaders["x-tokensip-session"] = sessionReport.id;
+  if (sessionReport?.leak)
+    tsHeaders["x-tokensip-cache-leak"] = `${sessionReport.leak.kind} at ${sessionReport.leak.location}`;
   if (report?.lossy) {
     tsHeaders["x-tokensip-warning"] =
       `lossy optimization (${profile}): ${PROFILE_INFO[profile].warning ?? "the model received a reduced prompt"}`;
@@ -614,6 +629,8 @@ export async function proxyRequest(
     }
   }
   if (!usage && upstream.status < 400 && protocol) usage = estimateUsage(payload, accumulator.generatedText());
+  // Teach the engine how well this provider really caches this conversation.
+  if (sessionReport && usage && !usage.estimated && upstream.status < 400) app.engine.observe(sessionReport.id, usage);
   const isStream = isSse || payload?.stream === true;
   record(aborted && !res.writableFinished ? 499 : upstream.status, {
     usage: usage ?? undefined,

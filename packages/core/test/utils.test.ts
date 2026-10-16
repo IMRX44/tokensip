@@ -167,6 +167,42 @@ describe("providers", () => {
   });
 });
 
+describe("createTokenSipFetch sessions", () => {
+  it("tracks the conversation across calls and reports cache leaks", async () => {
+    const fake = (async () => new Response("{}")) as typeof fetch;
+    const sessions: (string | undefined)[] = [];
+    const leaks: (string | undefined)[] = [];
+    const f = createTokenSipFetch({
+      fetch: fake,
+      profile: "safe",
+      onReport: (_r, info) => {
+        sessions.push(info.session?.id);
+        leaks.push(info.session?.leak?.kind);
+      },
+    });
+    const body = (time: string, extra: unknown[] = []) =>
+      JSON.stringify({
+        model: "gpt-4.1",
+        messages: [
+          { role: "system", content: `Rules.\n${"Long rules. ".repeat(60)}\nTime: ${time}\nEnd.` },
+          { role: "user", content: "task" },
+          ...extra,
+        ],
+      });
+    await f("https://api.openai.com/v1/chat/completions", { method: "POST", body: body("2026-10-16T10:00:00Z") });
+    await f("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      body: body("2026-10-16T10:05:00Z", [
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "more" },
+      ]),
+    });
+    expect(sessions[0]).toBeDefined();
+    expect(sessions[1]).toBe(sessions[0]);
+    expect(leaks).toEqual([undefined, "timestamp"]);
+  });
+});
+
 describe("createTokenSipFetch", () => {
   it("optimizes chat requests in-process and leaves other calls alone", async () => {
     const seen: string[] = [];
