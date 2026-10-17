@@ -126,7 +126,7 @@ jobs:
             | sed -E "s#\]\((docs/[^)]+)\)#](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/\1)#g" \
             > RELEASE_NOTES.md
           test -s RELEASE_NOTES.md || { echo "::error::CHANGELOG.md has no '## [$VERSION]' section"; exit 1; }
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           target_commitish: ${{ needs.prepare.outputs.sha }}
