@@ -2,6 +2,7 @@ import {
   BookOpen,
   FlaskConical,
   KeyRound,
+  Layers,
   LayoutDashboard,
   List,
   LogOut,
@@ -26,10 +27,12 @@ import { LabPage } from "./pages/Lab";
 import { OverviewPage } from "./pages/Overview";
 import { ProvidersPage } from "./pages/Providers";
 import { RequestsPage } from "./pages/Requests";
+import { SessionsPage } from "./pages/Sessions";
 import { SettingsPage } from "./pages/Settings";
 
 const NAV: { path: string; key: MessageKey; icon: ReactNode }[] = [
   { path: "/", key: "nav.overview", icon: <LayoutDashboard size={17} /> },
+  { path: "/sessions", key: "nav.sessions", icon: <Layers size={17} /> },
   { path: "/requests", key: "nav.requests", icon: <List size={17} /> },
   { path: "/lab", key: "nav.lab", icon: <FlaskConical size={17} /> },
   { path: "/providers", key: "nav.providers", icon: <Server size={17} /> },
@@ -45,8 +48,20 @@ function Shell({ auth, catalog, onAuthChange }: { auth: AuthState; catalog: Cata
   const [open, setOpen] = useState(false);
   const dark = document.documentElement.dataset.theme !== "light";
 
+  const section = path.startsWith("/sessions/") ? "/sessions" : path;
   let page: ReactNode;
-  switch (path) {
+  switch (section) {
+    case "/sessions": {
+      const raw = path.slice("/sessions/".length);
+      let id: string | null = null;
+      try {
+        id = raw ? decodeURIComponent(raw) : null;
+      } catch {
+        id = null;
+      }
+      page = <SessionsPage key={id ?? ""} id={id} />;
+      break;
+    }
     case "/requests":
       page = <RequestsPage />;
       break;
@@ -88,7 +103,7 @@ function Shell({ auth, catalog, onAuthChange }: { auth: AuthState; catalog: Cata
           <a
             key={n.path}
             href={n.path}
-            className={`nav-link ${path === n.path || (n.path === "/" && !NAV.some((x) => x.path === path)) ? "active" : ""}`}
+            className={`nav-link ${section === n.path || (n.path === "/" && !NAV.some((x) => x.path === section)) ? "active" : ""}`}
             onClick={(e) => {
               e.preventDefault();
               setOpen(false);

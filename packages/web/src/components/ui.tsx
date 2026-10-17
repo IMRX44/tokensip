@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Copy, Info, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Copy, Info, X } from "lucide-react";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { useI18n } from "../i18n";
 import { brandColor, initials } from "../lib/brand";
@@ -101,12 +101,12 @@ export function Callout({
   title,
   children,
 }: {
-  tone?: "info" | "warn" | "bad";
+  tone?: "info" | "ok" | "warn" | "bad";
   title?: string;
   children: ReactNode;
 }) {
-  const Icon = tone === "info" ? Info : AlertTriangle;
-  const color = tone === "info" ? "var(--cyan)" : tone === "warn" ? "var(--amber)" : "var(--rose)";
+  const Icon = tone === "info" ? Info : tone === "ok" ? CheckCircle2 : AlertTriangle;
+  const color = { info: "var(--cyan)", ok: "var(--mint)", warn: "var(--amber)", bad: "var(--rose)" }[tone];
   return (
     <div className={`callout ${tone}`}>
       <Icon size={16} color={color} />

@@ -9,7 +9,7 @@ export interface Series {
   dashed?: boolean;
 }
 
-const H = 220;
+const DEFAULT_H = 220;
 const PAD = { t: 10, r: 8, b: 24, l: 52 };
 
 function niceMax(v: number): number {
@@ -24,10 +24,12 @@ export function AreaChart({
   labels,
   series,
   format,
+  height: H = DEFAULT_H,
 }: {
   labels: string[];
   series: Series[];
   format(v: number): string;
+  height?: number;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const ref = useRef<SVGSVGElement>(null);
@@ -62,6 +64,7 @@ export function AreaChart({
       <svg
         ref={ref}
         className="chart"
+        style={{ height: H }}
         viewBox={`0 0 ${W} ${H}`}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { emptyUsage, type Usage } from "@tokensip/core";
 import type { TokenSipApp } from "./app.js";
 
@@ -165,6 +165,147 @@ export function seedDemo(app: TokenSipApp, days = 30): number {
       count++;
     }
   }
+  count += seedSessions(app, keys.slice(0, 2), now);
+  app.requests.flush();
   app.db.exec("COMMIT");
+  return count;
+}
+
+/** Where each demo app's system prompt prints the current time. */
+const CLOCK_OFFSETS = [1937, 644, 2210];
+
+const AGENT_MODELS = [
+  { model: "claude-sonnet-4-5", provider: "anthropic", protocol: "anthropic", path: "/v1/messages", weight: 5 },
+  { model: "gpt-4.1", provider: "openai", protocol: "openai-chat", path: "/v1/chat/completions", weight: 3 },
+  { model: "deepseek-chat", provider: "deepseek", protocol: "openai-chat", path: "/v1/chat/completions", weight: 1 },
+  { model: "claude-haiku-4-5", provider: "anthropic", protocol: "anthropic", path: "/v1/messages", weight: 1 },
+];
+
+/**
+ * Multi-turn agent conversations as the session engine records them: a stable
+ * system prompt and tool list, a history that grows by one tool round per
+ * turn, re-reads that make older tool output outdated, the occasional cache
+ * leak (a clock in the system prompt, an MCP server reordering its tools), and
+ * the economic scheduler deciding when removing outdated output is worth a
+ * cache rebuild.
+ */
+function seedSessions(app: TokenSipApp, keys: { id: string; profile: string | null }[], now: number): number {
+  const total = AGENT_MODELS.reduce((a, m) => a + m.weight, 0);
+  let count = 0;
+  for (let n = 0; n < 36; n++) {
+    let r = Math.random() * total;
+    let m = AGENT_MODELS[0] as (typeof AGENT_MODELS)[number];
+    for (const x of AGENT_MODELS) {
+      r -= x.weight;
+      if (r <= 0) {
+        m = x;
+        break;
+      }
+    }
+    const showcase = n === 0;
+    const model = showcase ? (AGENT_MODELS[0] as (typeof AGENT_MODELS)[number]) : m;
+    const key = keys[n % keys.length] as (typeof keys)[number];
+    const anthropic = model.provider === "anthropic";
+    const turns = showcase ? 48 : Math.round(rand(10, 64));
+    const clockLeak = showcase || Math.random() < 0.3;
+    const toolLeak = !clockLeak && Math.random() < 0.25;
+    const editAt = Math.random() < 0.1 ? Math.round(turns / 2) : -1;
+    const coldAt = showcase ? 31 : -1;
+    const id = randomBytes(12).toString("base64url");
+    const prefix = Math.round(rand(9000, 22000));
+    let history = Math.round(rand(400, 1500));
+    let removed = 0;
+    let stale = 0;
+    let cachedUpTo = Math.random() < 0.4 ? prefix : 0;
+    let ts = showcase ? now - 25 * 60_000 - turns * 35_000 : now - rand(0.05, 7) * 864e5;
+
+    for (let turn = 1; turn <= turns; turn++) {
+      const longGap = turn === coldAt || (!showcase && turn > 1 && Math.random() < 0.05);
+      ts += longGap ? rand(6, 25) * 60_000 : rand(6, 70) * 1000;
+      if (ts > now) break;
+      if (longGap) cachedUpTo = 0;
+
+      let leak: { kind: string; location: string; shape: string; tokensAffected: number } | undefined;
+      const sentBefore = prefix + history - removed;
+      if (clockLeak && turn === 2) {
+        const at = CLOCK_OFFSETS[n % CLOCK_OFFSETS.length] as number;
+        leak = {
+          kind: "timestamp",
+          location: `system[0]@${at}`,
+          shape: "9999-99-99A99:99:99A",
+          tokensAffected: sentBefore,
+        };
+        cachedUpTo = 0;
+      } else if (toolLeak && turn === 3) {
+        leak = { kind: "tool-order", location: "tools", shape: "", tokensAffected: sentBefore };
+        cachedUpTo = 0;
+      } else if (turn === editAt) {
+        const keep = Math.round(prefix * 0.4);
+        leak = { kind: "text", location: "system[1]", shape: "", tokensAffected: sentBefore - keep };
+        cachedUpTo = Math.min(cachedUpTo, keep);
+      }
+
+      // Re-reading a file or re-running a command makes the earlier observation outdated.
+      if (turn > 2 && Math.random() < 0.3) stale += Math.round(rand(400, 5000));
+      let schedule: string | undefined;
+      if (stale > 0) {
+        const at = prefix + Math.round((history - removed) * rand(0.3, 0.8));
+        const rebuild = Math.max(0, cachedUpTo - at);
+        // Remove now when the prefix is cold anyway, or when the savings over the next turns beat the rebuild.
+        if (rebuild === 0 || stale * 0.1 * 8 >= rebuild * (anthropic ? 1.15 : 0.5)) {
+          schedule = "applied";
+          removed += stale;
+          stale = 0;
+          cachedUpTo = Math.min(cachedUpTo, at);
+        } else schedule = "deferred";
+      }
+
+      const sent = prefix + history - removed;
+      const cached = Math.min(cachedUpTo, sent);
+      const fresh = sent - cached;
+      const output = Math.round(rand(120, 1400));
+      const usage: Usage = {
+        ...emptyUsage(),
+        inputTokens: anthropic ? Math.round(fresh * 0.08) : fresh,
+        cacheWriteTokens: anthropic ? fresh - Math.round(fresh * 0.08) : 0,
+        cacheReadTokens: cached,
+        outputTokens: output,
+      };
+      const cost = app.prices.cost(model.model, usage, removed);
+      app.requests.insert({
+        id: randomUUID(),
+        ts: Math.round(ts),
+        keyId: key.id,
+        tenant: `key:${key.id}`,
+        provider: model.provider,
+        model: model.model,
+        protocol: model.protocol,
+        path: model.path,
+        stream: true,
+        status: 200,
+        latencyMs: rand(1500, 16000),
+        ttfbMs: rand(300, 1600),
+        overheadMs: Math.round(rand(0.4, 4.5) * 100) / 100,
+        usage,
+        optimizerSaved: removed,
+        cost: cost.actual,
+        baselineCost: cost.baseline,
+        cacheHit: false,
+        profile: key.profile ?? "balanced",
+        lossy: false,
+        error: null,
+        session: {
+          id,
+          turn,
+          predictedCache: Math.max(0, Math.round(cached * rand(0.97, 1))),
+          leak,
+          schedule,
+        },
+      });
+      count++;
+      cachedUpTo = sent;
+      history += output + Math.round(rand(300, 3500));
+    }
+  }
   return count;
 }

@@ -439,12 +439,14 @@ export class RequestLog {
     if (this.pending.length === 0) return;
     const rows = this.pending;
     this.pending = [];
-    this.db.exec("BEGIN");
+    // A savepoint nests inside a caller's transaction (e.g. a bulk import) where BEGIN would fail.
+    this.db.exec("SAVEPOINT request_log");
     try {
       for (const r of rows) this.write(r);
-      this.db.exec("COMMIT");
+      this.db.exec("RELEASE request_log");
     } catch (err) {
-      this.db.exec("ROLLBACK");
+      this.db.exec("ROLLBACK TO request_log");
+      this.db.exec("RELEASE request_log");
       throw err;
     }
   }

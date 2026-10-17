@@ -18,6 +18,7 @@ let browser: Browser;
 let context: BrowserContext;
 let page: Page;
 const problems: string[] = [];
+let vkey = "";
 
 beforeAll(async () => {
   upstream = createServer((req, res) => {
@@ -123,6 +124,7 @@ describe("dashboard", () => {
     await page.locator(".modal").getByRole("button", { name: "close" }).click();
     await page.locator("td", { hasText: "e2e-app" }).waitFor();
     expect(await page.content()).not.toContain(key);
+    vkey = key;
 
     const res = await fetch(`${base}/v1/chat/completions`, {
       method: "POST",
@@ -145,6 +147,41 @@ describe("dashboard", () => {
     await inputs.nth(1).fill("8");
     await row.getByRole("button", { name: "Save" }).click();
     await page.locator("tr", { hasText: "brand-new-model" }).getByText("custom").waitFor();
+  });
+
+  it("sessions: an agent conversation shows its timeline and the cache leak", async () => {
+    const turn = (n: number, time: string) => ({
+      model: "brand-new-model",
+      messages: [
+        { role: "system", content: `Rules.\n${"Policy text. ".repeat(400)}\nCurrent time: ${time}\nEnd.` },
+        { role: "user", content: "e2e session task" },
+        ...Array.from({ length: n - 1 }, (_, i) => [
+          { role: "assistant", content: `step ${i}` },
+          { role: "user", content: `more ${i}` },
+        ]).flat(),
+      ],
+    });
+    const times = ["2026-10-16T10:00:00Z", "2026-10-16T10:01:30Z", "2026-10-16T10:02:45Z"];
+    for (const [i, time] of times.entries()) {
+      const res = await fetch(`${base}/v1/chat/completions`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${vkey}`, "content-type": "application/json" },
+        body: JSON.stringify(turn(i + 1, time)),
+      });
+      expect(res.status).toBe(200);
+      await res.text();
+    }
+    await nav("Sessions");
+    await page.locator("tr", { hasText: "brand-new-model" }).first().click();
+    await page.getByText("Conversation timeline").waitFor();
+    expect(await page.locator(".tl-col").count()).toBe(3);
+    await page
+      .getByText(/Cache leak: Clock \/ date at system\[0\]@/)
+      .first()
+      .waitFor();
+    await page.locator(".event-row").getByText("repaired automatically").first().waitFor();
+    await page.getByRole("button", { name: "All sessions" }).click();
+    await page.getByText("Every agent conversation").waitFor();
   });
 
   it("optimizer lab: lossy profiles ask for confirmation and warn", async () => {

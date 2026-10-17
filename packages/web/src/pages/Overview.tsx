@@ -1,9 +1,9 @@
-import { Activity, Coins, Gauge, Plug, Sparkles, Zap } from "lucide-react";
+import { Activity, Coins, Gauge, Layers, Plug, Sparkles, Stethoscope, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AreaChart, Legend, Ring } from "../components/charts";
 import { Avatar, Callout, Empty, Segmented, Skeleton } from "../components/ui";
 import { useI18n } from "../i18n";
-import type { Overview } from "../lib/api";
+import { leakRepairable, type Overview, type Settings } from "../lib/api";
 import { useApi } from "../lib/hooks";
 import { navigate } from "../lib/router";
 
@@ -12,7 +12,10 @@ type Range = "24h" | "7d" | "30d" | "90d";
 export function OverviewPage() {
   const { t, usd, compact, pct, num, date, bytes } = useI18n();
   const [range, setRange] = useState<Range>("7d");
+  const [allLeaks, setAllLeaks] = useState(false);
   const { data, loading } = useApi<Overview>(`/overview?range=${range}`, [range]);
+  const { data: settings } = useApi<Settings>("/settings");
+  const repairs = settings ? settings.profile !== "off" && settings.profile !== "safe" : true;
 
   const labels = useMemo(() => {
     if (!data) return [];
@@ -137,13 +140,18 @@ export function OverviewPage() {
             })}
           </div>
         </div>
-        <div className="card">
-          <div className="stat-label">
-            <Activity size={14} /> {t("overview.requests")}
+        <button type="button" className="card clickable-card" onClick={() => navigate("/sessions")}>
+          <div className="row between">
+            <div>
+              <div className="stat-label">
+                <Layers size={14} /> {t("overview.cacheEfficiency")}
+              </div>
+              <div className="stat-value">{pct(tt.cacheReadShare)}</div>
+            </div>
+            <Ring value={tt.cacheReadShare} size={54} />
           </div>
-          <div className="stat-value">{num(tt.requests)}</div>
-          <div className="stat-hint">{t("overview.errors", { count: num(tt.errors) })}</div>
-        </div>
+          <div className="stat-hint">{t("overview.cacheEfficiencyHint", { sessions: num(tt.sessions) })}</div>
+        </button>
       </div>
 
       <div className="grid grid-3 mt">
@@ -162,6 +170,7 @@ export function OverviewPage() {
           <AreaChart
             labels={labels.map(fmtLabel)}
             format={(v) => usd(v)}
+            height={330}
             series={[
               {
                 label: t("overview.withoutTokensip"),
@@ -179,6 +188,13 @@ export function OverviewPage() {
           />
         </div>
         <div className="stack">
+          <div className="card">
+            <div className="stat-label">
+              <Activity size={14} /> {t("overview.requests")}
+            </div>
+            <div className="stat-value">{num(tt.requests)}</div>
+            <div className="stat-hint">{t("overview.errors", { count: num(tt.errors) })}</div>
+          </div>
           <div className="card">
             <div className="stat-label">
               <Zap size={14} /> {t("overview.cacheHits")}
@@ -277,6 +293,72 @@ export function OverviewPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="card mt">
+        <div className="row between wrap" style={{ marginBottom: 4 }}>
+          <h3 className="card-title" style={{ margin: 0 }}>
+            <Stethoscope size={16} style={{ verticalAlign: -2, marginInlineEnd: 6 }} />
+            {t("doctor.title")}
+          </h3>
+          {tt.leaks > 0 && <span className="badge bad">{num(tt.leaks)}</span>}
+        </div>
+        <p className="small faint" style={{ margin: "0 0 12px" }}>
+          {t("doctor.subtitle")}
+        </p>
+        {data.cacheDoctor.length === 0 ? (
+          <Callout tone="ok">{t("doctor.none")}</Callout>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>{t("sessions.leaks")}</th>
+                  <th>{t("doctor.where")}</th>
+                  <th>{t("doctor.shape")}</th>
+                  <th className="num">{t("doctor.seen")}</th>
+                  <th className="num">{t("doctor.wasted")}</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {data.cacheDoctor.slice(0, allLeaks ? undefined : 6).map((l) => (
+                  <tr key={`${l.kind}-${l.location}-${l.shape}`}>
+                    <td>
+                      <span className="badge bad">
+                        <span className="dot" />
+                        {t(`leak.${l.kind}`)}
+                      </span>
+                    </td>
+                    <td className="mono small">{l.location}</td>
+                    <td>
+                      {l.shape ? <code className="doctor-shape">{l.shape}</code> : <span className="faint">—</span>}
+                    </td>
+                    <td className="num">
+                      {num(l.count)}×
+                      <div className="small faint">{date(l.lastSeen, { dateStyle: "short", timeStyle: "short" })}</div>
+                    </td>
+                    <td className="num">{compact(l.tokens)}</td>
+                    <td>
+                      {leakRepairable(l) && repairs ? (
+                        <span className="badge ok">{t("doctor.repaired")}</span>
+                      ) : leakRepairable(l) ? (
+                        <span className="small faint">{t("doctor.repairHint")}</span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!allLeaks && data.cacheDoctor.length > 6 && (
+              <div className="row" style={{ justifyContent: "center", marginTop: 12 }}>
+                <button type="button" className="btn sm" onClick={() => setAllLeaks(true)}>
+                  {t("common.showAll", { n: num(data.cacheDoctor.length) })}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

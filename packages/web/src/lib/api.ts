@@ -103,7 +103,11 @@ export interface Overview {
     savingsRate: number;
     avgOverheadMs: number;
     avgLatencyMs: number;
+    leaks: number;
+    sessions: number;
+    cacheReadShare: number;
   };
+  cacheDoctor: CacheLeakGroup[];
   series: {
     t: number;
     requests: number;
@@ -219,4 +223,73 @@ export interface OptimizeReport {
   lossy: boolean;
   durationMs: number;
   stages: { id: string; safety: Safety; applied: boolean; tokensSaved: number; edits: number; note?: string }[];
+}
+
+export type LeakKind =
+  | "timestamp"
+  | "id"
+  | "counter"
+  | "whitespace"
+  | "tool-order"
+  | "json-key-order"
+  | "tools-changed"
+  | "text";
+
+export interface CacheLeakGroup {
+  kind: LeakKind;
+  location: string;
+  shape: string;
+  count: number;
+  tokens: number;
+  lastSeen: number;
+}
+
+export interface SessionSummary {
+  id: string;
+  firstTs: number;
+  lastTs: number;
+  turns: number;
+  model: string | null;
+  provider: string | null;
+  key: string;
+  promptTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+  cacheReadShare: number;
+  optimizerSaved: number;
+  leaks: number;
+  applied: number;
+  deferred: number;
+  cost: number;
+  baselineCost: number;
+}
+
+export interface SessionTurn {
+  ts: number;
+  turn: number | null;
+  model: string | null;
+  status: number;
+  inputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  outputTokens: number;
+  predictedCache: number | null;
+  optimizerSaved: number;
+  leak: { kind: LeakKind; location: string; shape: string | null; tokens: number | null } | null;
+  schedule: "applied" | "deferred" | null;
+  cost: number;
+  baselineCost: number;
+  cacheHit: boolean;
+  latencyMs: number;
+}
+
+export interface SessionDetail {
+  id: string;
+  turns: SessionTurn[];
+}
+
+/** Leaks the balanced profile fixes on its own (stable tool order, relocated system values). */
+export function leakRepairable(leak: { kind: LeakKind; location: string }): boolean {
+  if (leak.location === "tools") return leak.kind === "tool-order" || leak.kind === "json-key-order";
+  return leak.location.startsWith("system") && ["timestamp", "id", "counter", "whitespace"].includes(leak.kind);
 }
