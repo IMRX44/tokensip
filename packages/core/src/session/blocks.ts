@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { canonicalJson } from "../json.js";
+import { hash } from "node:crypto";
 import { isObj, type Json } from "../protocols/types.js";
 import type { Protocol } from "../types.js";
 
@@ -26,14 +25,46 @@ export interface Block {
   name?: string;
 }
 
-const h = (s: string) => createHash("sha256").update(s).digest("base64url").slice(0, 22);
-const stripCache = (v: unknown): unknown =>
-  JSON.parse(JSON.stringify(v ?? null), (k, val) => (k === "cache_control" ? undefined : val));
+const h = (s: string) => hash("sha256", s, "base64url").slice(0, 22);
+const dropCacheMarkers = (key: string, value: unknown) => (key === "cache_control" ? undefined : value);
 
-function block(region: Region, index: number, value: unknown, extra: Partial<Block> = {}): Block {
-  const clean = stripCache(value);
-  const raw = JSON.stringify(clean);
-  return { region, index, hash: h(raw), canon: h(canonicalJson(clean)), tokens: Math.ceil(raw.length / 4), ...extra };
+/** Serialized bytes without `cache_control` markers (they change as breakpoints move, not the content). */
+function serialize(value: unknown): string {
+  const raw = JSON.stringify(value ?? null);
+  // Most blocks carry no markers: only pay for the replacer when one may be present.
+  return raw.includes('"cache_control"') ? JSON.stringify(value ?? null, dropCacheMarkers) : raw;
+}
+
+/** Sorted keys, no cache markers — equal for two blocks that differ only in key order. */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value).sort()) {
+      const v = (value as Record<string, unknown>)[key];
+      if (key !== "cache_control" && v !== undefined) out[key] = canonical(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * `known` maps raw hashes to canonical hashes from the previous turn: in a
+ * growing conversation almost every block is unchanged, so only new blocks pay
+ * for canonicalization.
+ */
+function block(
+  region: Region,
+  index: number,
+  value: unknown,
+  extra: Partial<Block>,
+  known: ReadonlyMap<string, string> | undefined,
+): Block {
+  const raw = serialize(value);
+  const id = h(raw);
+  const canon = known?.get(id) ?? h(JSON.stringify(canonical(value ?? null)));
+  return { region, index, hash: id, canon, tokens: Math.ceil(raw.length / 4), ...extra };
 }
 
 function toolName(t: unknown): string | undefined {
@@ -52,40 +83,42 @@ function systemText(v: unknown): string {
   return "";
 }
 
-export function blocksOf(protocol: Protocol, payload: Json): Block[] {
+export function blocksOf(protocol: Protocol, payload: Json, known?: ReadonlyMap<string, string>): Block[] {
   const out: Block[] = [];
+  const make = (region: Region, index: number, value: unknown, extra: Partial<Block> = {}) =>
+    block(region, index, value, extra, known);
   const tools = Array.isArray(payload.tools) ? payload.tools : [];
-  for (const [i, t] of tools.entries()) out.push(block("tools", i, t, { name: toolName(t) }));
+  for (const [i, t] of tools.entries()) out.push(make("tools", i, t, { name: toolName(t) }));
 
   if (protocol === "anthropic") {
     const sys = payload.system;
-    if (typeof sys === "string") out.push(block("system", 0, sys, { text: sys }));
+    if (typeof sys === "string") out.push(make("system", 0, sys, { text: sys }));
     else if (Array.isArray(sys))
-      for (const [i, b] of sys.entries()) out.push(block("system", i, b, { text: systemText([b]) }));
+      for (const [i, b] of sys.entries()) out.push(make("system", i, b, { text: systemText([b]) }));
     for (const [i, m] of (Array.isArray(payload.messages) ? payload.messages : []).entries())
-      out.push(block("messages", i, m));
+      out.push(make("messages", i, m));
   } else if (protocol === "openai-chat") {
     let sysIndex = 0;
     let inLeadingSystem = true;
     (Array.isArray(payload.messages) ? payload.messages : []).forEach((m, i) => {
       const isSys = isObj(m) && (m.role === "system" || m.role === "developer");
-      if (inLeadingSystem && isSys) out.push(block("system", sysIndex++, m, { text: systemText(m) }));
+      if (inLeadingSystem && isSys) out.push(make("system", sysIndex++, m, { text: systemText(m) }));
       else {
         inLeadingSystem = false;
-        out.push(block("messages", i, m));
+        out.push(make("messages", i, m));
       }
     });
   } else if (protocol === "openai-responses") {
     if (typeof payload.instructions === "string")
-      out.push(block("system", 0, payload.instructions, { text: payload.instructions }));
+      out.push(make("system", 0, payload.instructions, { text: payload.instructions }));
     const input = payload.input;
-    if (typeof input === "string") out.push(block("messages", 0, input));
-    else if (Array.isArray(input)) for (const [i, m] of input.entries()) out.push(block("messages", i, m));
+    if (typeof input === "string") out.push(make("messages", 0, input));
+    else if (Array.isArray(input)) for (const [i, m] of input.entries()) out.push(make("messages", i, m));
   } else if (protocol === "gemini") {
     const sys = payload.systemInstruction ?? payload.system_instruction;
-    if (sys) out.push(block("system", 0, sys, { text: systemText(sys) }));
+    if (sys) out.push(make("system", 0, sys, { text: systemText(sys) }));
     for (const [i, m] of (Array.isArray(payload.contents) ? payload.contents : []).entries())
-      out.push(block("messages", i, m));
+      out.push(make("messages", i, m));
   }
   return out;
 }

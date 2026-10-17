@@ -24,6 +24,7 @@ ${bold("Usage")}
   tokensip keys list                  List virtual API keys
   tokensip reset-password             Generate a new admin password (and disable 2FA)
   tokensip demo                       Try the dashboard with synthetic traffic (no keys needed)
+  tokensip simulate                   Replay synthetic agent sessions against a billed prompt-cache model
   tokensip doctor                     Check your environment
   tokensip version
 
@@ -35,6 +36,10 @@ ${bold("Options")}
       --profile <profile>    off | safe | balanced | aggressive | extreme
       --protocol <protocol>  For 'optimize': openai-chat | openai-responses | anthropic | gemini
       --no-dashboard         Disable the web dashboard
+      --sessions <n>         For 'simulate': conversations to replay (default 12)
+      --turns <n>            For 'simulate': turns per conversation (default 60)
+      --clock                For 'simulate': put a clock in the system prompt (a common cache leak)
+      --no-breaks            For 'simulate': no coffee breaks longer than the 5-minute cache TTL
   -h, --help
 
 ${bold("Docs")} https://github.com/IMRX44/tokensip
@@ -60,6 +65,11 @@ function parse() {
       budget: { type: "string" },
       rpm: { type: "string" },
       password: { type: "string" },
+      sessions: { type: "string" },
+      turns: { type: "string" },
+      seed: { type: "string" },
+      clock: { type: "boolean" },
+      "no-breaks": { type: "boolean" },
       "no-dashboard": { type: "boolean" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
@@ -286,6 +296,43 @@ async function demo(values: Values) {
   process.on("SIGINT", () => void server.close().then(() => process.exit(0)));
 }
 
+async function simulateCmd(values: Values) {
+  const { simulate } = await import("@tokensip/core");
+  const int = (v: string | undefined, def: number, max: number) => {
+    const n = v === undefined ? def : Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > max) throw new Error(`expected a whole number between 1 and ${max}`);
+    return n;
+  };
+  const opts = {
+    sessions: int(values.sessions, 12, 500),
+    turns: int(values.turns, 60, 400),
+    seed: int(values.seed, 7, 1e9),
+    leakyClock: Boolean(values.clock),
+    breaks: !values["no-breaks"],
+  };
+  console.log(
+    `\n  ${bold("Simulating")} ${opts.sessions} agent sessions × ${opts.turns} turns ${dim(
+      `(Anthropic cache billing · ${opts.breaks ? "with" : "no"} breaks > 5 min · ${opts.leakyClock ? "clock in system prompt" : "stable system prompt"})`,
+    )}\n`,
+  );
+  const started = performance.now();
+  const results = simulate(opts);
+  const ref = results[1]?.dollars ?? 0;
+  const width = Math.max(...results.map((r) => r.strategy.length));
+  for (const r of results) {
+    const delta = ref > 0 ? (r.dollars - ref) / ref : 0;
+    const deltaText = r === results[1] ? dim("baseline") : `${delta > 0 ? "+" : ""}${(delta * 100).toFixed(1)}%`;
+    const isV2 = r === results[results.length - 1];
+    const line = `  ${r.strategy.padEnd(width)}  ${`$${r.dollars.toFixed(2)}`.padStart(9)}  ${deltaText.padStart(9)}  ${dim(
+      `${(r.cacheReadShare * 100).toFixed(1)}% from cache`,
+    )}`;
+    console.log(isV2 ? bold(green(line)) : delta > 0 ? yellow(line) : line);
+  }
+  console.log(
+    dim(`\n  ${((performance.now() - started) / 1000).toFixed(1)}s · same seed, same sessions for every strategy\n`),
+  );
+}
+
 async function main() {
   const { values, positionals } = parse();
   if (values.help) return console.log(HELP);
@@ -304,6 +351,8 @@ async function main() {
       return doctor(values);
     case "demo":
       return demo(values);
+    case "simulate":
+      return simulateCmd(values);
     case "version":
       return console.log(VERSION);
     case "help":

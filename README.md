@@ -5,7 +5,8 @@
 <h3>Cut your LLM bill without changing how your AI behaves.</h3>
 
 A self-hosted, drop-in gateway for **OpenAI, Anthropic, Gemini, DeepSeek and 20+ providers**<br/>
-that maximizes prompt-cache hits, trims wasted tokens and shows you every dollar saved.
+that plans every context change around the provider's prompt cache, repairs cache leaks automatically<br/>
+and shows you every dollar saved — without taking anything away that your agent still needs.
 
 [![CI](https://github.com/IMRX44/tokensip/actions/workflows/ci.yml/badge.svg)](https://github.com/IMRX44/tokensip/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/IMRX44/tokensip/actions/workflows/codeql.yml/badge.svg)](https://github.com/IMRX44/tokensip/actions/workflows/codeql.yml)
@@ -16,7 +17,7 @@ that maximizes prompt-cache hits, trims wasted tokens and shows you every dollar
 
 **English** · [فارسی](README.fa.md) · [Русский](README.ru.md) · [العربية](README.ar.md) · [简体中文](README.zh-CN.md)
 
-[Quick start](#-quick-start) · [How it saves](#-how-it-saves-money) · [Profiles](#%EF%B8%8F-savings-profiles) · [Providers](#-providers--endpoints) · [Agents](#-works-with-your-agents) · [Security](#-security) · [Docs](docs)
+[What's new in 2.0](#-new-in-20-the-cache-economic-context-engine) · [Quick start](#-quick-start) · [How it saves](#-how-it-saves-money) · [Profiles](#%EF%B8%8F-savings-profiles) · [Providers](#-providers--endpoints) · [Agents](#-works-with-your-agents) · [Security](#-security) · [Docs](docs)
 
 </div>
 
@@ -34,12 +35,52 @@ apps and frameworks don't.
 
 TokenSip sits between your code and your providers and fixes that for you:
 
+- 🧮 **Cache-economic (new in 2.0).** Removes tool output only when a newer read of the same file or command made it outdated — and only when that pays off against the provider's cache prices. Cache leaks (a clock in the system prompt, reshuffled tools) are found and fixed for you.
 - 🧠 **Cache-aware by design.** Adds Anthropic `cache_control` breakpoints and stable OpenAI `prompt_cache_key`s automatically, and every optimization is *prefix-stable* so caches keep hitting turn after turn.
-- 🪶 **Lossless first.** The default `safe` profile never changes what the model sees. Unchanged requests are forwarded **byte-for-byte**.
+- 🪶 **Agent-safe by default.** The default `balanced` profile never removes anything the model still needs: the latest version of every file and command output stays verbatim, assistant turns are never touched. `safe` forwards unchanged requests **byte-for-byte**.
 - 🎚️ **You choose the trade-off.** Five profiles from `off` to `extreme` (≈10% of the original prompt), with clear quality warnings for every lossy step.
 - 🔌 **Zero code changes.** Swap one base URL. Works with every OpenAI, Anthropic and Gemini SDK, and with Claude Code, Codex, Gemini CLI, Aider, Cline, Continue …
 - 🔐 **Secure & private.** Encrypted key vault, virtual keys with budgets, no prompts stored, 2FA, strict CSP. Runs on your laptop or your server.
 - 📊 **Proof, not promises.** A dashboard that shows actual cost vs. what you *would* have paid — per model, per key, per request.
+
+## 🧠 New in 2.0: the cache-economic context engine
+
+Every context manager makes the prompt *smaller*. With prompt caching, that is
+often a **loss**: cached tokens cost 10% of the price, so deleting a stale file
+read near the start of a long agent session forces the provider to re-process —
+and re-write at 125% — everything after it, to save a few tokens at 10%.
+In our simulation, pruning on every turn made the same sessions **33–87% more
+expensive** than plain caching. And pruning by guesswork deletes code the agent still needs.
+
+TokenSip 2 asks two narrower questions instead:
+
+1. **Is this information provably outdated?** A file that was read again, a
+   test suite that was re-run — the newer result shows the current state. Only
+   the older copy is replaced, by a pointer to the newer call. The latest
+   observation is always kept, so the agent never has to re-read or re-derive.
+2. **Is removing it *now* cheaper than keeping it?** A shadow model of the
+   provider's cache decides: apply when the cache is cold or the rewrite pays
+   for itself (`S·r·H ≥ (C−p)·(w−r)`), otherwise wait for a free moment.
+   Applied changes stay put, so the prefix is cacheable again from the next turn.
+
+And because most cache misses in practice are **cache leaks**, the built-in
+**Cache Doctor** watches every conversation for values that silently break the
+cache — a clock or request id in the system prompt, tools serialized in a
+different order — and repairs them without changing what the model sees.
+
+| Same 720 agent turns, billed with Anthropic's cache rules | Plain caching | Naive pruning every turn | **TokenSip 2** |
+| --- | --- | --- | --- |
+| Idle breaks longer than the 5-minute cache TTL | $33.00 | $43.85 (+32.9%) | **$22.82 (−30.9%)** |
+| A clock in the system prompt | $161.96 | $46.41 (−71.3%) | **$23.86 (−85.3%)** |
+| No breaks | $20.77 | $38.87 (+87.2%) | **$18.72 (−9.9%)** |
+
+Run it yourself with `npx tokensip simulate` (`--clock`, `--no-breaks`). Against a
+real provider, a system prompt with a clock went from **~4% to ~96%** of prompt
+tokens read from cache. Every turn, leak and decision is visible in the dashboard:
+
+<img src="assets/screenshots/sessions.png" alt="Sessions: per-turn timeline of cached vs. full-price prompt tokens, with Cache Doctor findings and scheduler decisions" width="100%" />
+
+→ [How the engine works](docs/cache-economics.md)
 
 ## 🚀 Quick start
 
@@ -113,7 +154,8 @@ const client = new OpenAI({ fetch: createTokenSipFetch({ profile: "balanced" }) 
 flowchart LR
     A["Your app / agent<br/>(any SDK)"] -->|"base URL → TokenSip"| B{"Response cache<br/>hit?"}
     B -- "yes · $0" --> A
-    B -- no --> C["Optimizer<br/>safe → extreme"]
+    B -- no --> S["Session engine<br/>shadow cache · Cache Doctor"]
+    S --> C["Optimizer<br/>safe → extreme"]
     C --> D["OpenAI · Anthropic · Gemini<br/>DeepSeek · Groq · 20+"]
     D -->|"streamed back + usage & cost accounting"| A
 ```
@@ -121,7 +163,8 @@ flowchart LR
 | Lever | What TokenSip does | Typical effect |
 | --- | --- | --- |
 | **Provider prompt caching** | Adds Anthropic cache breakpoints, sets OpenAI `prompt_cache_key`, keeps prefixes byte-stable | Repeated context billed at **10%** (Anthropic) / **10–50%** (OpenAI, DeepSeek, Gemini) |
-| **Lossless trimming** | Prose whitespace, pretty-printed JSON tool output, repeated tool results | **40–50% fewer prompt tokens** on agent transcripts (`balanced`) |
+| **Cache-economic context** *(2.0)* | Removes outdated tool output when it pays off; repairs cache leaks | **−10% to −85%** vs. plain caching ([simulated](docs/cache-economics.md#results)) |
+| **Lossless trimming** | Prose whitespace, repeated tool results, pretty-printed JSON (`aggressive`) | **40–50% fewer prompt tokens** on agent transcripts |
 | **Response cache** | Identical deterministic requests answered from an encrypted per-key cache | **$0**, answered in milliseconds |
 | **Lossy budgets** *(opt-in)* | Context budget, history window, reasoning & output caps | Prompt down to **≈10%** (`extreme`) |
 
@@ -129,23 +172,23 @@ Measured with `npx tokensip optimize` on the agent transcripts in [`examples/req
 
 | Request | `safe` | `balanced` | `extreme` |
 | --- | --- | --- | --- |
-| OpenAI coding agent (14.1k tokens) | −0.1% · cache-key routing | **−48.5%** | **−90.8%** ⚠️ |
+| OpenAI coding agent (14.1k tokens) | −0.1% · cache-key routing | **−41.7%** | **−90.8%** ⚠️ |
 | Anthropic coding agent (5.3k tokens) | −0.3% · 4 cache breakpoints | **−42.2%** | **−89.1%** ⚠️ |
 
 > `safe` barely shortens the prompt on purpose: its job is to make the provider bill the repeated part at a fraction of the price, with **zero** change to what the model sees.
 
-**Overhead:** on a 51 KB (~14k-token) agent request, TokenSip adds **≈2.5 ms** with `safe` and **≈3.5 ms** with `balanced`
-end-to-end (proxying included) — against model latencies measured in seconds. Reproduce with `npm run bench`
-([numbers](docs/how-it-works.md#performance)).
+**Overhead:** on a 51 KB (~14k-token) agent request, TokenSip adds **≈2.3 ms** with `balanced` and **≈2.8 ms** with
+`extreme` end-to-end (proxying and session tracking included) — against model latencies measured in seconds.
+Reproduce with `npm run bench` ([numbers](docs/how-it-works.md#performance)).
 
 ## 🎚️ Savings profiles
 
 | Profile | Prompt sent | Quality risk | What it does |
 | --- | --- | --- | --- |
 | `off` | 100% | none | Pure proxy — analytics, budgets and response cache only |
-| **`safe`** *(default)* | 95–100% | **none** | Prompt-cache breakpoints & routing keys, prose whitespace. Byte-exact passthrough otherwise |
-| `balanced` | 70–95% | low | + JSON tool output minified, repeated tool results replaced by pointers |
-| `aggressive` ⚠️ | 40–70% | medium | + stale tool output truncated, middle of very long chats dropped, low-detail images |
+| `safe` | 95–100% | **none** | Prompt-cache breakpoints & routing keys, stable tool order, prose whitespace. Byte-exact passthrough otherwise |
+| **`balanced`** *(default)* | 70–95% | low | + Cache Doctor repairs, outdated tool output removed on a cache-economic schedule, repeated tool results replaced by pointers |
+| `aggressive` ⚠️ | 40–70% | medium | + JSON minified, stale tool output truncated, middle of very long chats dropped, low-detail images |
 | `extreme` ⚠️ | **≈10%** | **high** | + context budget (configurable ratio), lower reasoning effort, output cap |
 
 Set it globally in the dashboard, per virtual key, or per request with
@@ -214,9 +257,10 @@ Any "OpenAI-compatible base URL" setting → `http://localhost:8787/v1` ([exampl
 </table>
 
 TokenSip is built to be invisible to agents: it never rewrites assistant turns
-(signed thinking blocks stay valid), never reformats tool output in `safe` mode
-(exact-match file edits keep working), keeps tool calls paired with their results,
-streams every chunk as it arrives and returns errors in your SDK's own format.
+(signed thinking blocks stay valid), never reformats tool output below `aggressive`
+(exact-match file edits keep working), only removes tool output that a newer read
+of the same file or command has superseded, keeps tool calls paired with their
+results, streams every chunk as it arrives and returns errors in your SDK's own format.
 
 ## 🔐 Security
 
@@ -253,7 +297,7 @@ English · فارسی · Русский · العربية · 简体中文 — wi
 | `TOKENSIP_PORT` | `8787` | |
 | `TOKENSIP_SECRET` | auto-generated | Master encryption key (`openssl rand -hex 32`) |
 | `TOKENSIP_ADMIN_PASSWORD` | — | Skip the setup-token flow |
-| `TOKENSIP_PROFILE` | `safe` | `off` · `safe` · `balanced` · `aggressive` · `extreme` |
+| `TOKENSIP_PROFILE` | `balanced` | `off` · `safe` · `balanced` · `aggressive` · `extreme` |
 | `TOKENSIP_DATA_DIR` | `~/.tokensip` | SQLite database (built into Node — nothing to install) |
 
 All options, CLI commands and headers: [docs/configuration.md](docs/configuration.md).
@@ -263,12 +307,17 @@ All options, CLI commands and headers: [docs/configuration.md](docs/configuratio
 | `x-tokensip-profile` — override the profile | `x-tokensip-tokens-saved` — tokens trimmed |
 | `x-tokensip-cache: bypass \| force` | `x-tokensip-cache: HIT \| MISS \| BYPASS` |
 | `x-tokensip-provider` — force a provider | `x-tokensip-warning` — lossy optimization applied |
+| | `x-tokensip-session` — the conversation this turn belongs to |
+| | `x-tokensip-cache-leak` — e.g. `timestamp at system[0]@1937` |
 
 ## 🆚 How is this different?
 
 | | TokenSip | Generic LLM gateways | Prompt compressors |
 | --- | --- | --- | --- |
 | Optimizes for provider **prompt caching** | ✅ automatic | ⚠️ manual | ⚠️ rewrites can break it |
+| Schedules context changes by **cache economics** | ✅ | ❌ | ❌ prunes eagerly |
+| Finds & repairs **cache leaks** (clocks, reshuffled tools) | ✅ automatic | ❌ | ❌ |
+| Removes only *provably outdated* tool output | ✅ newer read of the same resource | — | ⚠️ heuristics |
 | Lossless by default, byte-exact passthrough | ✅ | ✅ | ❌ |
 | Agent-safe (thinking blocks, tool pairing, exact edits) | ✅ | ✅ | ⚠️ |
 | Opt-in aggressive compression down to ≈10% | ✅ with warnings | ❌ | ✅ |
@@ -290,9 +339,10 @@ All options, CLI commands and headers: [docs/configuration.md](docs/configuratio
 | Suite | What it covers |
 | --- | --- |
 | **Unit & integration** (`npm test`) | Every optimizer stage, protocol adapter, usage parser and price rule; the gateway against a mock provider — auth, CSRF, key swapping, byte-exact passthrough, streaming, caching, budgets, rate limits |
-| **Property-based fuzzing** | ~1,200 random conversations across all 4 wire formats × 5 profiles: never mutates input, never edits assistant turns, prefix-stable, tool calls stay paired |
-| **Browser end-to-end** (`npm run test:e2e`) | The whole dashboard in Chromium: setup, providers, keys, pricing, lab, RTL, 2FA — and zero console errors or CSP violations |
-| **Live** (`npm run test:live`) | The official OpenAI and Anthropic SDKs (JS and Python) through TokenSip against a real provider: chat, streaming, tool use, caching, aborts, concurrency |
+| **Property-based fuzzing** | ~1,200 random conversations across all 4 wire formats × 5 profiles: never mutates input, never edits assistant turns, prefix-stable, tool calls stay paired — plus random multi-turn agent sessions: every removed token recoverable through the pointer chain, the latest observation always verbatim, applied changes stable across turns |
+| **Cost simulation** (`npx tokensip simulate`) | The same synthetic sessions billed under Anthropic's cache rules for every strategy — a regression test keeps TokenSip 2 cheaper than plain caching and naive pruning |
+| **Browser end-to-end** (`npm run test:e2e`) | The whole dashboard in Chromium: setup, providers, keys, pricing, sessions, lab, RTL, 2FA — and zero console errors or CSP violations |
+| **Live** (`npm run test:live`) | The official OpenAI and Anthropic SDKs (JS and Python) through TokenSip against a real provider: chat, streaming, tool use, caching, aborts, concurrency, Cache Doctor, and a real model answering correctly after an outdated read was removed |
 | **Benchmark** (`npm run bench`) | Added latency and throughput per profile, in separate processes |
 
 ## 🤝 Contributing
@@ -312,5 +362,5 @@ If TokenSip saves you money, **please ⭐ star the repo** — it helps others fi
 [MIT](LICENSE) © IMRX44
 
 <div align="center">
-<sub>Keywords: LLM gateway · AI proxy · token optimization · prompt caching · OpenAI proxy · Claude proxy · Gemini proxy · LLM cost reduction · AI agents · self-hosted</sub>
+<sub>Keywords: LLM gateway · AI proxy · token optimization · prompt caching · context engineering · OpenAI proxy · Claude proxy · Gemini proxy · Claude Code · coding agents · LLM cost reduction · AI agents · self-hosted</sub>
 </div>

@@ -10,7 +10,7 @@
 | `TOKENSIP_DATA_DIR` | `~/.tokensip` (`/data` in Docker) | SQLite database and generated master key |
 | `TOKENSIP_SECRET` | generated `master.key` | Master key: 64 hex chars, or any passphrase (stretched with scrypt) |
 | `TOKENSIP_ADMIN_PASSWORD` | — | Bootstrap admin password; otherwise a one-time setup token is printed |
-| `TOKENSIP_PROFILE` | `safe` | Initial optimization profile |
+| `TOKENSIP_PROFILE` | `balanced` | Initial optimization profile |
 | `TOKENSIP_ALLOW_PASSTHROUGH` | `true` local / `false` server | Accept provider keys from clients |
 | `TOKENSIP_TRUST_PROXY` | `false` | Trust `X-Forwarded-*` (behind a reverse proxy) |
 | `TOKENSIP_CORS_ORIGINS` | — | Comma-separated origins allowed to call the proxy from browsers (`*` for any) |
@@ -49,6 +49,8 @@ tokensip optimize <file.json>       Optimize a request body offline and print th
 tokensip keys create --name <name>  Create a virtual API key  [--profile] [--budget] [--rpm]
 tokensip keys list                  List virtual API keys
 tokensip reset-password             New admin password (disables 2FA, signs out sessions)
+tokensip simulate                   Replay synthetic agent sessions under Anthropic cache billing
+                                    [--sessions 12] [--turns 60] [--clock] [--no-breaks] [--seed 7]
 tokensip doctor                     Check your environment
 tokensip version
 
@@ -74,3 +76,7 @@ tokensip version
 | `x-tokensip-tokens-saved` | Prompt tokens removed by optimizers |
 | `x-tokensip-cache` | `HIT`, `MISS` or `BYPASS` |
 | `x-tokensip-warning` | Present when a lossy stage changed the request |
+| `x-tokensip-session` | Conversation the request belongs to (see Dashboard → Sessions) |
+| `x-tokensip-cache-leak` | A cache leak found on this turn, e.g. `timestamp at system[0]@1937` ([Cache Doctor](cache-economics.md#4--cache-doctor)) |
+
+All of them are readable from browsers when `TOKENSIP_CORS_ORIGINS` allows the origin.

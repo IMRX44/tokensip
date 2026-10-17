@@ -7,6 +7,7 @@ import {
   PriceBook,
   resourceOf,
   SessionEngine,
+  simulate,
   volatileSpan,
 } from "../src/index.js";
 
@@ -228,5 +229,16 @@ describe("SessionEngine", () => {
       { protocol: "anthropic", tenant: "c", now: 0 },
     );
     expect(engine.size).toBe(2);
+  });
+});
+
+describe("cost simulator", () => {
+  it("v2 beats both plain caching and naive pruning on the same sessions", () => {
+    for (const scenario of [{ breaks: true }, { leakyClock: true }]) {
+      const [none, v1, naive, v2] = simulate({ sessions: 2, turns: 24, ...scenario }).map((r) => r.dollars) as number[];
+      expect(v2).toBeLessThan(v1 as number);
+      expect(v2).toBeLessThan(naive as number);
+      expect(v2).toBeLessThan(none as number);
+    }
   });
 });

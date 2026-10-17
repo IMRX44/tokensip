@@ -55,4 +55,12 @@ describe("demo data", () => {
     expect(turns.length).toBe(first.turns);
     expect((await get("/sessions/does-not-exist")).status).toBe(404);
   });
+
+  it("every seeded turn sends new tokens past the cached prefix", () => {
+    const rows = ts.app.db
+      .prepare("SELECT input_tokens + cache_write_tokens AS fresh FROM requests WHERE session_id IS NOT NULL")
+      .all() as { fresh: number }[];
+    expect(rows.length).toBeGreaterThan(100);
+    expect(rows.every((r) => r.fresh > 0)).toBe(true);
+  });
 });

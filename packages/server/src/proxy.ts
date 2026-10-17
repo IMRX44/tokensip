@@ -192,7 +192,8 @@ function corsHeaders(app: TokenSipApp, req: FastifyRequest): Record<string, stri
   return {
     "access-control-allow-origin": allowed.includes("*") ? "*" : origin,
     "access-control-expose-headers":
-      "x-tokensip-request-id, x-tokensip-tokens-saved, x-tokensip-cache, x-tokensip-profile, x-tokensip-warning",
+      "x-tokensip-request-id, x-tokensip-tokens-saved, x-tokensip-cache, x-tokensip-profile, x-tokensip-provider, " +
+      "x-tokensip-warning, x-tokensip-session, x-tokensip-cache-leak",
     vary: "Origin",
   };
 }

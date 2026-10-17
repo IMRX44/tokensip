@@ -158,7 +158,7 @@ export function seedDemo(app: TokenSipApp, days = 30): number {
         cost: status === 200 && !cacheHit ? cost.actual : 0,
         baselineCost: status === 200 ? cost.baseline : 0,
         cacheHit: status === 200 && cacheHit,
-        profile: key.profile ?? "safe",
+        profile: key.profile ?? "balanced",
         lossy,
         error: status === 200 ? null : status === 429 ? "rate limited by provider" : "upstream error",
       });
@@ -245,11 +245,11 @@ function seedSessions(app: TokenSipApp, keys: { id: string; profile: string | nu
         cachedUpTo = Math.min(cachedUpTo, keep);
       }
 
-      // Re-reading a file or re-running a command makes the earlier observation outdated.
-      if (turn > 2 && Math.random() < 0.3) stale += Math.round(rand(400, 5000));
       let schedule: string | undefined;
       if (stale > 0) {
-        const at = prefix + Math.round((history - removed) * rand(0.3, 0.8));
+        // The outdated output lies inside what was sent last turn, before this turn's new tool output.
+        const upper = (cachedUpTo >= prefix ? cachedUpTo : sentBefore) - stale;
+        const at = Math.max(prefix, Math.min(upper, prefix + Math.round((upper - prefix) * rand(0.3, 1))));
         const rebuild = Math.max(0, cachedUpTo - at);
         // Remove now when the prefix is cold anyway, or when the savings over the next turns beat the rebuild.
         if (rebuild === 0 || stale * 0.1 * 8 >= rebuild * (anthropic ? 1.15 : 0.5)) {
@@ -304,6 +304,10 @@ function seedSessions(app: TokenSipApp, keys: { id: string; profile: string | nu
       });
       count++;
       cachedUpTo = sent;
+      // This turn's tool output re-read a file or re-ran a command, making an earlier observation outdated.
+      if (turn > 1 && Math.random() < 0.3) {
+        stale = Math.min(stale + Math.round(rand(400, 5000)), Math.floor((history - removed) * 0.6));
+      }
       history += output + Math.round(rand(300, 3500));
     }
   }

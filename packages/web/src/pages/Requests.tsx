@@ -84,7 +84,7 @@ export function RequestsPage() {
                           {r.stream && <span className="badge">{t("requests.stream")}</span>}
                           {r.cacheHit && <span className="badge ok">{t("requests.cacheHit")}</span>}
                           {r.lossy && <span className="badge bad">{t("requests.lossy")}</span>}
-                          {r.profile && r.profile !== "safe" && !r.lossy && (
+                          {r.profile && r.profile !== "balanced" && !r.lossy && (
                             <span className="badge info">{r.profile}</span>
                           )}
                         </div>

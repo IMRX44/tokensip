@@ -1,6 +1,6 @@
 {
   "name": "@tokensip/core",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Token-optimization engine behind TokenSip: prefix-stable, lossless-first prompt optimizers, provider catalog, pricing and usage accounting for OpenAI, Anthropic, Gemini and every OpenAI-compatible API.",
   "type": "module",
   "main": "./dist/index.js",

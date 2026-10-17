@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canonicalJson,
+  countTokens,
   createTokenSipFetch,
   matchProviderByModel,
   minifyJsonText,
@@ -226,5 +227,23 @@ describe("createTokenSipFetch", () => {
     expect(JSON.parse(seen[0] ?? "{}").messages[0].content).toBe("hi\n\nthere");
     expect(seen[1]).toBe("");
     expect(reports).toHaveLength(1);
+  });
+});
+
+describe("countTokens", () => {
+  it("returns the same count from the memo as from a fresh encode", () => {
+    const text = `${"export const value = computeSomething(42);\n".repeat(80)}`;
+    const first = countTokens(text, "exact");
+    expect(first).toBeGreaterThan(100);
+    expect(countTokens(text, "exact")).toBe(first);
+    // A different mode never reads the other mode's memo.
+    expect(Math.abs(countTokens(text, "sampled") - first) / first).toBeLessThan(0.1);
+    expect(countTokens(text, "approx")).toBe(Math.ceil(text.length / 4));
+  });
+
+  it("stays correct when the memo evicts", () => {
+    const texts = Array.from({ length: 600 }, (_, i) => `${i} ${"lorem ipsum dolor sit amet ".repeat(400)}`);
+    const counts = texts.map((t) => countTokens(t, "exact"));
+    expect(texts.map((t) => countTokens(t, "exact"))).toEqual(counts);
   });
 });

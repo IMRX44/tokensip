@@ -45,6 +45,8 @@ export type { Resource } from "./session/resources.js";
 export { resourceOf } from "./session/resources.js";
 export type { SchedulerDecision, SessionRuntime, SessionState } from "./session/runtime.js";
 export { observations, supersededMap } from "./session/supersede.js";
+export type { SimulationResult, Strategy } from "./simulate.js";
+export { STRATEGIES, simulate } from "./simulate.js";
 export type { SseEvent } from "./sse.js";
 export { SseParser } from "./sse.js";
 export { countTokens, countValueTokens } from "./tokenizer.js";
@@ -55,4 +57,4 @@ export {
   usageFromResponse,
 } from "./usage.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "2.0.0";

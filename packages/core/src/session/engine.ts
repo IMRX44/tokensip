@@ -173,7 +173,7 @@ export class SessionEngine {
 
     const now = o.now ?? Date.now();
     const state = this.state(id, now);
-    const origBlocks = blocksOf(o.protocol, p);
+    const origBlocks = blocksOf(o.protocol, p, new Map(state.prevOriginal.map((b) => [b.hash, b.canon])));
 
     // ---- cache doctor: what did the client change since the previous turn?
     let leak: CacheLeak | undefined;

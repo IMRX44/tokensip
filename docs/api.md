@@ -33,7 +33,9 @@ calls, the `x-csrf-token` header returned by `GET /api/auth/state`.
 | `POST /api/auth/setup` · `login` · `logout` · `password` | Authentication |
 | `POST /api/auth/totp/begin` · `enable` · `disable` | Two-factor authentication |
 | `GET /api/catalog` | Providers, stages, profiles, defaults |
-| `GET /api/overview?range=24h\|7d\|30d\|90d` | Savings analytics |
+| `GET /api/overview?range=24h\|7d\|30d\|90d` | Savings analytics, cache efficiency and Cache Doctor findings |
+| `GET /api/sessions?range=24h\|7d\|30d\|90d` | Agent conversations: turns, cache-read share, outdated output removed, leaks, scheduler decisions |
+| `GET /api/sessions/:id` | One conversation turn by turn (cached vs. uncached tokens, leak, `applied`/`deferred`) |
 | `GET /api/requests?limit&before&status&provider&keyId` | Request log (metadata only) |
 | `GET/POST /api/providers`, `PATCH/DELETE /api/providers/:id`, `POST /api/providers/:id/test` | Provider keys |
 | `GET/POST /api/keys`, `PATCH/DELETE /api/keys/:id` | Virtual keys |
