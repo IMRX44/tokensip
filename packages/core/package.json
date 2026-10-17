@@ -48,6 +48,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "gpt-tokenizer": "^3.4.0"
+    "gpt-tokenizer": "^4.0.0"
   }
 }
