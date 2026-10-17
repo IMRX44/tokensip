@@ -20,8 +20,8 @@ Delete one stale file read near the *start* of a 100k-token conversation and
 everything after it no longer matches the cache. The provider re-processes —
 and re-writes — ~100k tokens at 1.25× to save a few thousand tokens at 0.1×.
 Do that on every turn and the "optimization" costs more than doing nothing.
-In the simulator below, naive pruning every turn is **+33% to +87% more
-expensive** than plain caching.
+In the simulator below, when no cache leak is involved, naive pruning every turn
+is **+33% to +87% more expensive** than plain caching.
 
 The second problem is quality: tools that prune context by guessing what is
 "no longer needed" sometimes remove code the agent still relies on. It then

@@ -12,7 +12,8 @@ export ANTHROPIC_BASE_URL=http://localhost:8787/anthropic
 claude          # keeps your existing login or ANTHROPIC_API_KEY (passthrough)
 ```
 Claude Code already manages prompt caching, so `safe` leaves its cache
-breakpoints alone; `balanced` adds tool-output dedupe and JSON minification.
+breakpoints alone; `balanced` (the default) adds Cache Doctor repairs, cache-scheduled
+removal of outdated tool output and tool-output dedupe. JSON minification is in `aggressive`.
 
 **OpenAI Codex CLI** — `~/.codex/config.toml`
 ```toml

@@ -1,0 +1,62 @@
+name: Publish to npm
+
+# Called by the release workflow for every version tag, and runnable by hand
+# (Actions → Publish to npm → Run workflow) to publish an existing tag later,
+# e.g. after adding the NPM_TOKEN secret.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag to publish, e.g. v2.0.0
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @tokensip/core and tokensip
+    runs-on: ubuntu-latest
+    env:
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: Skip without NPM_TOKEN
+        if: env.HAS_NPM_TOKEN != 'true'
+        run: |
+          echo "::warning::NPM_TOKEN is not set, so npm publish was skipped. Add the secret, then run 'Publish to npm' for ${{ inputs.ref }}."
+          echo "npm publish skipped: the NPM_TOKEN repository secret is not set." >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish
+        if: env.HAS_NPM_TOKEN == 'true'
+        env:
+          # Step-level, so it wins over the placeholder setup-node exports.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Core first: tokensip depends on it. Versions already on npm are skipped, so re-runs are safe.
+          for ws in packages/core packages/server; do
+            name=$(node -p "require('./$ws/package.json').name")
+            version=$(node -p "require('./$ws/package.json').version")
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already published"
+            else
+              npm publish -w "$ws" --access public --provenance
+              echo "published $name@$version" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done

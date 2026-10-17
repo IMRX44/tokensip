@@ -49,8 +49,8 @@ Every context manager makes the prompt *smaller*. With prompt caching, that is
 often a **loss**: cached tokens cost 10% of the price, so deleting a stale file
 read near the start of a long agent session forces the provider to re-process —
 and re-write at 125% — everything after it, to save a few tokens at 10%.
-In our simulation, pruning on every turn made the same sessions **33–87% more
-expensive** than plain caching. And pruning by guesswork deletes code the agent still needs.
+In our simulation, without a cache leak, pruning on every turn made the same
+sessions **33–87% more expensive** than plain caching. And pruning by guesswork deletes code the agent still needs.
 
 TokenSip 2 asks two narrower questions instead:
 
@@ -187,7 +187,7 @@ Reproduce with `npm run bench` ([numbers](docs/how-it-works.md#performance)).
 | --- | --- | --- | --- |
 | `off` | 100% | none | Pure proxy — analytics, budgets and response cache only |
 | `safe` | 95–100% | **none** | Prompt-cache breakpoints & routing keys, stable tool order, prose whitespace. Byte-exact passthrough otherwise |
-| **`balanced`** *(default)* | 70–95% | low | + Cache Doctor repairs, outdated tool output removed on a cache-economic schedule, repeated tool results replaced by pointers |
+| **`balanced`** *(default)* | 55–95% | low | + Cache Doctor repairs, outdated tool output removed on a cache-economic schedule, repeated tool results replaced by pointers |
 | `aggressive` ⚠️ | 40–70% | medium | + JSON minified, stale tool output truncated, middle of very long chats dropped, low-detail images |
 | `extreme` ⚠️ | **≈10%** | **high** | + context budget (configurable ratio), lower reasoning effort, output cap |
 

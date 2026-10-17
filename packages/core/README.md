@@ -48,9 +48,12 @@ is deterministic and prefix-stable so provider prompt caches keep hitting.
 ```ts
 import { PriceBook, usageFromResponse, StreamUsageAccumulator } from "@tokensip/core";
 
+// null when the response carries no usage block
 const usage = usageFromResponse("openai-chat", responseJson);
-const cost = new PriceBook().cost("gpt-4.1", usage);
-// { actual, baseline, saved, priced }
+if (usage) {
+  const cost = new PriceBook().cost("gpt-4.1", usage);
+  // { actual, baseline, saved, priced }
+}
 ```
 
 See the [optimization guide](https://github.com/IMRX44/tokensip/blob/main/docs/optimizations.md)

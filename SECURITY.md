@@ -16,7 +16,7 @@ given in the release notes unless you prefer otherwise.
 
 | Version | Supported |
 | ------- | --------- |
-| 0.x     | ✅ latest minor |
+| 2.x     | ✅ latest minor |
 
 ## Security model
 

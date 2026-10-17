@@ -66,7 +66,7 @@ breaks — while naive pruning every turn costs +32.9% / +87.2% in the first and
 third scenarios. Live, a system prompt with a clock went from ~6% to ~96% of
 prompt tokens read from cache.
 
-## [0.1.0] — 2026-10-16
+## [0.1.0] — 2026-10-16 (untagged)
 
 ### Added
 
@@ -111,4 +111,4 @@ prompt tokens read from cache.
   reports, cached lookups, batched request logging, prepared statements.
 
 [2.0.0]: https://github.com/IMRX44/tokensip/releases/tag/v2.0.0
-[0.1.0]: https://github.com/IMRX44/tokensip/releases/tag/v0.1.0
+[0.1.0]: https://github.com/IMRX44/tokensip/tree/6b1840d

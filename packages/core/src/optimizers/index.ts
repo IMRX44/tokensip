@@ -93,7 +93,7 @@ export const PROFILE_INFO: Record<ProfileId, ProfileInfo> = {
     typicalPromptRatio: "95–100% (cost cut via caching)",
     risk: "none",
   },
-  balanced: { id: "balanced", typicalPromptRatio: "70–95%", risk: "low" },
+  balanced: { id: "balanced", typicalPromptRatio: "55–95%", risk: "low" },
   aggressive: {
     id: "aggressive",
     typicalPromptRatio: "40–70%",

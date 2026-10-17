@@ -17,7 +17,7 @@ turns (they may carry signed reasoning), never mutate the caller's object.
 | --- | --- | --- | --- | --- |
 | `off` | — | 100% | none | Pure proxy: analytics, budgets, response cache |
 | `safe` | stable tools · whitespace · Anthropic cache breakpoints · OpenAI cache key | 95–100% | **none** | Byte-exact behavior. Savings come from provider prompt caching. |
-| **`balanced`** *(default)* | safe + Cache Doctor repairs · outdated-output removal (cache-scheduled) · tool-output dedupe | 70–95% | low | Coding agents, RAG apps — everything |
+| **`balanced`** *(default)* | safe + Cache Doctor repairs · outdated-output removal (cache-scheduled) · tool-output dedupe | 55–95% | low | Coding agents, RAG apps — everything |
 | `aggressive` | balanced + JSON minify · stale-tool truncation · history window · low-detail images | 40–70% | medium | Very long agent sessions |
 | `extreme` | aggressive + context budget · reduced reasoning · output cap | **≈10%** (configurable) | **high** | Cheap bulk jobs, classification, drafts |
 
