@@ -63,7 +63,7 @@ output that a newer observation has made outdated is ever removed.
 Simulator, 12 sessions × 60 turns, against plain caching: **−30.9%** with
 idle breaks, **−85.3%** with a clock in the system prompt, **−9.9%** without
 breaks — while naive pruning every turn costs +32.9% / +87.2% in the first and
-third scenarios. Live, a system prompt with a clock went from ~4% to ~96% of
+third scenarios. Live, a system prompt with a clock went from ~6% to ~96% of
 prompt tokens read from cache.
 
 ## [0.1.0] — 2026-10-16

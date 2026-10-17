@@ -63,10 +63,10 @@ TokenSip 2 asks two narrower questions instead:
    for itself (`S·r·H ≥ (C−p)·(w−r)`), otherwise wait for a free moment.
    Applied changes stay put, so the prefix is cacheable again from the next turn.
 
-And because most cache misses in practice are **cache leaks**, the built-in
+And because many cache misses come from **cache leaks**, not from context growth, the built-in
 **Cache Doctor** watches every conversation for values that silently break the
 cache — a clock or request id in the system prompt, tools serialized in a
-different order — and repairs them without changing what the model sees.
+different order — and repairs them without hiding anything from the model.
 
 | Same 720 agent turns, billed with Anthropic's cache rules | Plain caching | Naive pruning every turn | **TokenSip 2** |
 | --- | --- | --- | --- |
@@ -75,7 +75,7 @@ different order — and repairs them without changing what the model sees.
 | No breaks | $20.77 | $38.87 (+87.2%) | **$18.72 (−9.9%)** |
 
 Run it yourself with `npx tokensip simulate` (`--clock`, `--no-breaks`). Against a
-real provider, a system prompt with a clock went from **~4% to ~96%** of prompt
+real provider, a system prompt with a clock went from **~6% to ~96%** of prompt
 tokens read from cache. Every turn, leak and decision is visible in the dashboard:
 
 <img src="assets/screenshots/sessions.png" alt="Sessions: per-turn timeline of cached vs. full-price prompt tokens, with Cache Doctor findings and scheduler decisions" width="100%" />

@@ -35,9 +35,9 @@ TokenSip 2 never asks "is this token needed?" It asks two narrower questions:
 2. **Is removing it *now* cheaper than keeping it, given the cache?** — only
    then is it removed now; otherwise it waits for a moment when removal is free.
 
-And because most real-world cache misses are not caused by context growth at all
-but by **cache leaks** — a clock in the system prompt, tools serialized in a
-different order — it finds and repairs those automatically.
+And because many cache misses are not caused by context growth at all but by
+**cache leaks** — a clock in the system prompt, tools serialized in a different
+order — it finds and repairs those automatically.
 
 ```mermaid
 flowchart LR
@@ -181,7 +181,7 @@ system prompt contains a clock:
 
 | Profile | Prompt tokens read from cache per turn, once warm |
 | --- | --- |
-| `safe` (v1 behavior) | ≈241 of ≈4,300 (**~4%**) |
+| `safe` (v1 behavior) | ≈241 of ≈4,200 (**~6%**) |
 | `balanced` (TokenSip 2) | ≈4,209 of ≈4,300 (**~96%**) |
 
 A second live test reads a file, edits it and reads it again. With the outdated
